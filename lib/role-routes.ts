@@ -1,6 +1,7 @@
 const ROLE_LANDING: [string, string][] = [
   ["ADMIN", "/dashboard"],
   ["GM", "/dashboard"],
+  ["ACCOUNTING", "/dashboard"],
   ["MANAGER", "/pos"],
   ["CASHIER", "/pos"],
 ];

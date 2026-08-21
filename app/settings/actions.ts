@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import type { RowDataPacket } from "mysql2";
 import { requireRole } from "@/lib/auth-guard";
 import pool from "@/lib/db";
+import { getT } from "@/lib/i18n/server";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 const ALLOWED_ROLES = ["ADMIN"];
 
@@ -28,10 +30,10 @@ interface UserInput {
   outletIds: number[];
 }
 
-function validateUserInput(input: UserInput): string | null {
-  if (!input.name.trim()) return "Name is required.";
-  if (!input.email.trim() || !input.email.includes("@")) return "A valid email is required.";
-  if (input.roleIds.length === 0) return "Select at least one role.";
+function validateUserInput(input: UserInput, t: TranslateFn): string | null {
+  if (!input.name.trim()) return t("inventory.errNameRequired");
+  if (!input.email.trim() || !input.email.includes("@")) return t("settings.errValidEmailRequired");
+  if (input.roleIds.length === 0) return t("settings.errSelectAtLeastOneRole");
   return null;
 }
 
@@ -64,10 +66,11 @@ export async function createUser(
   input: UserInput & { password: string },
 ): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateUserInput(input);
+  const { t } = await getT();
+  const validationError = validateUserInput(input, t);
   if (validationError) return { ok: false, message: validationError };
   if (input.password.length < 6) {
-    return { ok: false, message: "Password must be at least 6 characters." };
+    return { ok: false, message: t("settings.errPasswordMinLength") };
   }
 
   const conn = await pool.getConnection();
@@ -88,10 +91,10 @@ export async function createUser(
   } catch (error) {
     await conn.rollback();
     if (isDuplicateEmailError(error)) {
-      return { ok: false, message: "A user with this email already exists." };
+      return { ok: false, message: t("settings.errEmailExists") };
     }
     console.error("createUser failed", error);
-    return { ok: false, message: "Could not save user. Please try again." };
+    return { ok: false, message: t("settings.errCouldNotSaveUser") };
   } finally {
     conn.release();
   }
@@ -99,7 +102,8 @@ export async function createUser(
 
 export async function updateUser(input: UserInput & { id: number }): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
-  const validationError = validateUserInput(input);
+  const { t } = await getT();
+  const validationError = validateUserInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   const isSelf = Number(session.user.id) === input.id;
@@ -109,7 +113,7 @@ export async function updateUser(input: UserInput & { id: number }): Promise<Act
     );
     const adminRoleId = adminRole[0]?.id as number | undefined;
     if (adminRoleId && !input.roleIds.includes(adminRoleId)) {
-      return { ok: false, message: "You cannot remove your own Administrator role." };
+      return { ok: false, message: t("settings.errCannotRemoveOwnAdmin") };
     }
   }
 
@@ -123,7 +127,7 @@ export async function updateUser(input: UserInput & { id: number }): Promise<Act
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       await conn.rollback();
-      return { ok: false, message: "User not found." };
+      return { ok: false, message: t("settings.errUserNotFound") };
     }
 
     await syncUserRolesAndOutlets(conn, input.id, input.roleIds, input.outletIds);
@@ -133,10 +137,10 @@ export async function updateUser(input: UserInput & { id: number }): Promise<Act
   } catch (error) {
     await conn.rollback();
     if (isDuplicateEmailError(error)) {
-      return { ok: false, message: "A user with this email already exists." };
+      return { ok: false, message: t("settings.errEmailExists") };
     }
     console.error("updateUser failed", error);
-    return { ok: false, message: "Could not save user. Please try again." };
+    return { ok: false, message: t("settings.errCouldNotSaveUser") };
   } finally {
     conn.release();
   }
@@ -147,8 +151,9 @@ export async function resetUserPassword(input: {
   password: string;
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.password.length < 6) {
-    return { ok: false, message: "Password must be at least 6 characters." };
+    return { ok: false, message: t("settings.errPasswordMinLength") };
   }
 
   try {
@@ -158,12 +163,12 @@ export async function resetUserPassword(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "User not found." };
+      return { ok: false, message: t("settings.errUserNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("resetUserPassword failed", error);
-    return { ok: false, message: "Could not reset password. Please try again." };
+    return { ok: false, message: t("settings.errCouldNotResetPassword") };
   }
 }
 
@@ -172,11 +177,12 @@ export async function setUserStatus(input: {
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
-    return { ok: false, message: "Invalid status." };
+    return { ok: false, message: t("inventory.errInvalidStatus") };
   }
   if (Number(session.user.id) === input.id && input.status === "INACTIVE") {
-    return { ok: false, message: "You cannot deactivate your own account." };
+    return { ok: false, message: t("settings.errCannotDeactivateSelf") };
   }
 
   try {
@@ -185,12 +191,12 @@ export async function setUserStatus(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "User not found." };
+      return { ok: false, message: t("settings.errUserNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("setUserStatus failed", error);
-    return { ok: false, message: "Could not update user status. Please try again." };
+    return { ok: false, message: t("settings.errCouldNotUpdateUserStatus") };
   }
 }
 
@@ -200,6 +206,7 @@ export async function setRoleMenuPermission(input: {
   allowed: boolean;
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
 
   try {
     if (input.allowed) {
@@ -216,6 +223,6 @@ export async function setRoleMenuPermission(input: {
     return { ok: true };
   } catch (error) {
     console.error("setRoleMenuPermission failed", error);
-    return { ok: false, message: "Could not update permission. Please try again." };
+    return { ok: false, message: t("settings.errCouldNotUpdatePermission") };
   }
 }

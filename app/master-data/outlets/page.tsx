@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForManagement } from "@/lib/outlets";
 import { OutletsTable } from "@/app/ui/master-data/outlets-table";
 import { QrisOutletGrid, type QrCardData } from "@/app/ui/master-data/qris-outlet-grid";
+import { getT } from "@/lib/i18n/server";
+import { PageHeader } from "@/app/ui/page-header";
 
 async function getBaseUrl(): Promise<string> {
   const headerList = await headers();
@@ -15,6 +17,7 @@ async function getBaseUrl(): Promise<string> {
 
 export default async function OutletsPage() {
   const session = await requireRole(["ADMIN", "GM", "MANAGER"]);
+  const { t } = await getT();
   const isGlobal = session.user.roles.some((r) => r === "ADMIN" || r === "GM");
   const outlets = await getOutletsForManagement(session);
   const baseUrl = await getBaseUrl();
@@ -29,21 +32,22 @@ export default async function OutletsPage() {
   );
 
   return (
-    <div className="p-6 sm:p-10 print:p-0">
+    <>
       <div className="print:hidden">
-        <p className="text-xs font-medium text-gray-400">Master Data</p>
-        <h1 className="text-2xl font-bold text-gray-900">Outlets</h1>
+        <PageHeader eyebrow={t("nav.masterData")} title={t("nav.outlets")} />
       </div>
 
-      {isGlobal && (
-        <div className="mt-6 print:hidden">
-          <OutletsTable outlets={outlets} />
+      <div className="flex-1 overflow-y-auto p-6 sm:p-10 print:p-0">
+        {isGlobal && (
+          <div className="print:hidden">
+            <OutletsTable outlets={outlets} />
+          </div>
+        )}
+
+        <div className="mt-10 print:mt-0">
+          <QrisOutletGrid cards={cards} />
         </div>
-      )}
-
-      <div className="mt-10 print:mt-0">
-        <QrisOutletGrid cards={cards} />
       </div>
-    </div>
+    </>
   );
 }

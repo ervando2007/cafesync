@@ -8,6 +8,7 @@ import { HeartIcon } from "@/app/ui/order/icons";
 import { PlusIcon } from "@/app/ui/pos/icons";
 import { useWishlist } from "@/app/ui/order/use-wishlist";
 import type { MenuItem } from "@/lib/customer-menu";
+import { useI18n } from "@/app/i18n-provider";
 
 function formatRp(value: number) {
   return `Rp ${value.toLocaleString("id-ID")}`;
@@ -31,8 +32,15 @@ export function ProductGrid({
   items: MenuItem[];
   onAdd: (item: MenuItem) => void;
 }) {
+  const { t } = useI18n();
   const { wishlist, toggle: toggleWishlist } = useWishlist();
   const [sortBy, setSortBy] = useState<SortOption>("POPULAR");
+  const sortLabels: Record<SortOption, string> = {
+    POPULAR: t("order.sortPopular"),
+    PRICE_ASC: t("order.sortPriceAsc"),
+    PRICE_DESC: t("order.sortPriceDesc"),
+    NAME: t("order.sortName"),
+  };
 
   const sortedItems = useMemo(() => [...items].sort(SORTERS[sortBy]), [items, sortBy]);
 
@@ -41,22 +49,22 @@ export function ProductGrid({
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">{title}</h2>
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          <span>Sort by</span>
+          <span>{t("order.sortBy")}</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}
             className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
           >
-            <option value="POPULAR">Popular</option>
-            <option value="PRICE_ASC">Price: Low to High</option>
-            <option value="PRICE_DESC">Price: High to Low</option>
-            <option value="NAME">Name</option>
+            <option value="POPULAR">{sortLabels.POPULAR}</option>
+            <option value="PRICE_ASC">{sortLabels.PRICE_ASC}</option>
+            <option value="PRICE_DESC">{sortLabels.PRICE_DESC}</option>
+            <option value="NAME">{sortLabels.NAME}</option>
           </select>
         </div>
       </div>
 
       {sortedItems.length === 0 ? (
-        <p className="mt-10 text-center text-sm text-gray-400">No menu items match your search.</p>
+        <p className="mt-10 text-center text-sm text-gray-400">{t("order.noMenuItemsMatch")}</p>
       ) : (
         <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-3 xl:grid-cols-4">
           {sortedItems.map((item) => {
@@ -76,7 +84,7 @@ export function ProductGrid({
                   <button
                     type="button"
                     onClick={() => toggleWishlist(item.productId)}
-                    aria-label="Toggle wishlist"
+                    aria-label={t("order.toggleWishlist")}
                     className={`absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm transition ${
                       isWishlisted ? "text-red-500" : "text-gray-400 hover:text-gray-600"
                     }`}
@@ -100,7 +108,7 @@ export function ProductGrid({
                       className="flex items-center gap-1 rounded-full bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
                     >
                       <PlusIcon className="h-3 w-3" />
-                      Add
+                      {t("common.add")}
                     </button>
                   </div>
                 </div>

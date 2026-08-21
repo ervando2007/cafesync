@@ -6,6 +6,7 @@ import { XIcon, PlusIcon } from "@/app/ui/pos/icons";
 import { EditIcon } from "@/app/ui/inventory/icons";
 import { createCategory, updateCategory, setCategoryStatus } from "@/app/inventory/actions";
 import type { CategoryOption } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
 
 export function CategoryManagerModal({
   categories,
@@ -15,6 +16,7 @@ export function CategoryManagerModal({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -29,7 +31,7 @@ export function CategoryManagerModal({
     startTransition(async () => {
       const result = await createCategory({ name });
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       setNewName("");
@@ -51,7 +53,7 @@ export function CategoryManagerModal({
     startTransition(async () => {
       const result = await updateCategory({ id: editingId, name });
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       setEditingId(null);
@@ -72,12 +74,12 @@ export function CategoryManagerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Manage Categories</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t("inventory.manageCategories")}</h2>
           <button
             type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -91,7 +93,7 @@ export function CategoryManagerModal({
 
         <div className="mt-4 max-h-72 space-y-1.5 overflow-y-auto">
           {categories.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-400">No categories yet.</p>
+            <p className="py-6 text-center text-sm text-gray-400">{t("inventory.noCategoriesYet")}</p>
           ) : (
             categories.map((category) => (
               <div
@@ -118,7 +120,7 @@ export function CategoryManagerModal({
                   type="button"
                   onClick={() => startEdit(category)}
                   className="text-gray-400 hover:text-amber-700"
-                  aria-label={`Edit ${category.name}`}
+                  aria-label={t("inventory.editAriaLabel", { name: category.name })}
                 >
                   <EditIcon className="h-3.5 w-3.5" />
                 </button>
@@ -128,7 +130,7 @@ export function CategoryManagerModal({
                   disabled={isPending}
                   className="text-xs font-medium text-gray-400 hover:text-gray-700 disabled:opacity-50"
                 >
-                  {category.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                  {category.status === "ACTIVE" ? t("common.deactivate") : t("common.activate")}
                 </button>
               </div>
             ))
@@ -140,7 +142,7 @@ export function CategoryManagerModal({
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            placeholder="New category name..."
+            placeholder={t("inventory.newCategoryNamePlaceholder")}
             className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
           />
           <button
@@ -150,7 +152,7 @@ export function CategoryManagerModal({
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-700 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <PlusIcon className="h-3.5 w-3.5" />
-            Add
+            {t("common.add")}
           </button>
         </div>
       </div>

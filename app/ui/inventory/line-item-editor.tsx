@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PlusIcon, SearchIcon, TrashIcon } from "@/app/ui/pos/icons";
 import type { StockItemOption } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
 
 export interface EditorLine {
   stockItemId: number;
@@ -30,6 +31,7 @@ export function LineItemEditor({
   lines: EditorLine[];
   onChange: (lines: EditorLine[]) => void;
 }) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [showPicker, setShowPicker] = useState(false);
 
@@ -64,12 +66,12 @@ export function LineItemEditor({
     onChange(lines.filter((l) => l.stockItemId !== stockItemId));
   }
 
-  const qtyColumnLabel = mode === "adjustment" ? "Actual Qty" : "Qty";
+  const qtyColumnLabel = mode === "adjustment" ? t("inventory.colActualQty") : t("inventory.colQty");
 
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-900">Items</h2>
+        <h2 className="text-base font-semibold text-gray-900">{t("inventory.itemsTitle")}</h2>
         <div className="relative">
           <button
             type="button"
@@ -77,7 +79,7 @@ export function LineItemEditor({
             className="flex items-center gap-1.5 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
           >
             <PlusIcon className="h-3.5 w-3.5" />
-            Add Item
+            {t("inventory.addItem")}
           </button>
 
           {showPicker && (
@@ -88,13 +90,13 @@ export function LineItemEditor({
                   autoFocus
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search item..."
+                  placeholder={t("inventory.searchItemPlaceholder")}
                   className="w-full rounded-lg border border-gray-200 py-2 pl-8 pr-3 text-sm focus:border-amber-500 focus:outline-none"
                 />
               </div>
               <div className="mt-2 max-h-56 overflow-y-auto">
                 {pickable.length === 0 ? (
-                  <p className="py-4 text-center text-xs text-gray-400">No items found.</p>
+                  <p className="py-4 text-center text-xs text-gray-400">{t("inventory.noItemsFound")}</p>
                 ) : (
                   pickable.map((item) => (
                     <button
@@ -106,7 +108,7 @@ export function LineItemEditor({
                       <span>
                         <span className="block font-medium text-gray-900">{item.name}</span>
                         <span className="block text-xs text-gray-400">
-                          {item.qtyOnHand} {item.unitName} on hand
+                          {t("inventory.onHandSuffix", { qty: item.qtyOnHand, unit: item.unitName })}
                         </span>
                       </span>
                     </button>
@@ -120,18 +122,18 @@ export function LineItemEditor({
 
       <div className="mt-4 overflow-x-auto">
         {lines.length === 0 ? (
-          <p className="py-10 text-center text-sm text-gray-400">No items added yet.</p>
+          <p className="py-10 text-center text-sm text-gray-400">{t("inventory.noItemsAddedYet")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-                <th className="pb-2 font-medium">Item</th>
-                <th className="pb-2 font-medium">Unit</th>
-                {mode === "adjustment" && <th className="pb-2 font-medium">System Qty</th>}
+                <th className="pb-2 font-medium">{t("inventory.colItem")}</th>
+                <th className="pb-2 font-medium">{t("inventory.colUnit")}</th>
+                {mode === "adjustment" && <th className="pb-2 font-medium">{t("inventory.colSystemQty")}</th>}
                 <th className="pb-2 font-medium">{qtyColumnLabel}</th>
-                {mode === "stock-in" && <th className="pb-2 font-medium">Unit Cost</th>}
+                {mode === "stock-in" && <th className="pb-2 font-medium">{t("inventory.colUnitCost")}</th>}
                 {(mode === "stock-in" || mode === "adjustment") && (
-                  <th className="pb-2 font-medium">Total</th>
+                  <th className="pb-2 font-medium">{t("inventory.colTotal")}</th>
                 )}
                 <th className="pb-2 font-medium"></th>
               </tr>

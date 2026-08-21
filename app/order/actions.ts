@@ -5,6 +5,7 @@ import pool from "@/lib/db";
 import { auth } from "@/auth";
 import { nextOrderNo } from "@/lib/order-no";
 import { getOrderByNo, type TrackedOrder } from "@/lib/customer-menu";
+import { getT } from "@/lib/i18n/server";
 
 export type CustomerOrderType = "DINE_IN_QR" | "TAKEAWAY";
 
@@ -41,13 +42,14 @@ export interface PlaceOrderError {
 export async function placeOrder(
   input: PlaceOrderInput,
 ): Promise<PlaceOrderResult | PlaceOrderError> {
+  const { t } = await getT();
   if (!input.items.length) {
-    return { ok: false, message: "Your cart is empty." };
+    return { ok: false, message: t("order.cartEmpty") };
   }
 
   const guestName = input.orderType === "TAKEAWAY" ? input.guestName.trim() : null;
   if (input.orderType === "TAKEAWAY" && !guestName) {
-    return { ok: false, message: "Please enter your name." };
+    return { ok: false, message: t("order.enterYourName") };
   }
 
   const conn = await pool.getConnection();
@@ -60,7 +62,7 @@ export async function placeOrder(
     );
     if (!outletRows.length) {
       await conn.rollback();
-      return { ok: false, message: "This outlet is not available." };
+      return { ok: false, message: t("order.errOutletNotAvailable") };
     }
 
     let tableId: number | null = null;
@@ -71,7 +73,7 @@ export async function placeOrder(
       );
       if (!tableRows.length || tableRows[0].status === "INACTIVE") {
         await conn.rollback();
-        return { ok: false, message: "Please select a valid table." };
+        return { ok: false, message: t("order.errSelectValidTable") };
       }
       tableId = input.tableId;
     }
@@ -104,7 +106,7 @@ export async function placeOrder(
       const priced = priceMap.get(item.productId);
       if (!priced || item.qty <= 0) {
         await conn.rollback();
-        return { ok: false, message: "One or more items are no longer available." };
+        return { ok: false, message: t("order.errItemsNoLongerAvailable") };
       }
       const lineTotal = priced.price * item.qty;
       subtotal += lineTotal;
@@ -163,7 +165,7 @@ export async function placeOrder(
   } catch (error) {
     await conn.rollback();
     console.error("placeOrder failed", error);
-    return { ok: false, message: "Could not place your order. Please try again." };
+    return { ok: false, message: t("order.errCouldNotPlaceOrder") };
   } finally {
     conn.release();
   }

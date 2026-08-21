@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import { PlusIcon } from "@/app/ui/pos/icons";
 import { JournalEntryModal } from "@/app/ui/accounting/journal-entry-modal";
 import type { AccountOption, JournalEntryRow } from "@/lib/accounting";
+import { useI18n } from "@/app/i18n-provider";
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -20,6 +21,7 @@ export function JournalEntriesTable({
   accounts: AccountOption[];
   canPost: boolean;
 }) {
+  const { t } = useI18n();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
 
@@ -27,8 +29,8 @@ export function JournalEntriesTable({
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-gray-100 p-5">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Journal Entries</h2>
-          <p className="mt-0.5 text-xs text-gray-400">Every posted double-entry transaction.</p>
+          <h2 className="text-base font-semibold text-gray-900">{t("nav.journalEntries")}</h2>
+          <p className="mt-0.5 text-xs text-gray-400">{t("accounting.everyPostedTxnDesc")}</p>
         </div>
         {canPost && (
           <button
@@ -37,7 +39,7 @@ export function JournalEntriesTable({
             className="flex items-center gap-1.5 rounded-lg bg-amber-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-800"
           >
             <PlusIcon className="h-3.5 w-3.5" />
-            New Entry
+            {t("accounting.newEntry")}
           </button>
         )}
       </div>
@@ -46,19 +48,19 @@ export function JournalEntriesTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-              <th className="px-5 py-3 font-medium">Journal No.</th>
-              <th className="px-5 py-3 font-medium">Date</th>
-              <th className="px-5 py-3 font-medium">Source</th>
-              <th className="px-5 py-3 font-medium">Memo</th>
-              <th className="px-5 py-3 font-medium">Amount</th>
-              <th className="px-5 py-3 font-medium">Status</th>
+              <th className="px-5 py-3 font-medium">{t("accounting.colJournalNo")}</th>
+              <th className="px-5 py-3 font-medium">{t("accounting.colDate")}</th>
+              <th className="px-5 py-3 font-medium">{t("accounting.colSource")}</th>
+              <th className="px-5 py-3 font-medium">{t("accounting.colMemo")}</th>
+              <th className="px-5 py-3 font-medium">{t("accounting.colAmount")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colStatus")}</th>
             </tr>
           </thead>
           <tbody>
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">
-                  No journal entries in this period.
+                  {t("accounting.noJournalEntriesInPeriod")}
                 </td>
               </tr>
             ) : (
@@ -83,7 +85,7 @@ export function JournalEntriesTable({
                             : "bg-gray-100 text-gray-500"
                         }`}
                       >
-                        {entry.status}
+                        {entry.status === "POSTED" ? t("accounting.statusPosted") : t("accounting.statusReversed")}
                       </span>
                     </td>
                   </tr>
@@ -93,9 +95,9 @@ export function JournalEntriesTable({
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-left text-gray-400">
-                              <th className="pb-1.5 font-medium">Account</th>
-                              <th className="pb-1.5 font-medium">Debit</th>
-                              <th className="pb-1.5 font-medium">Credit</th>
+                              <th className="pb-1.5 font-medium">{t("accounting.colAccount")}</th>
+                              <th className="pb-1.5 font-medium">{t("accounting.colDebit")}</th>
+                              <th className="pb-1.5 font-medium">{t("accounting.colCredit")}</th>
                             </tr>
                           </thead>
                           <tbody>

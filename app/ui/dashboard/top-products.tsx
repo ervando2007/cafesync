@@ -1,17 +1,18 @@
 import { ArrowRightIcon } from "@/app/ui/dashboard/icons";
 import { CoffeeCupIcon } from "@/app/ui/icons";
 import type { TopProduct } from "@/lib/dashboard-data";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
-export function TopProducts({ data }: { data: TopProduct[] }) {
+export function TopProducts({ data, t }: { data: TopProduct[]; t: TranslateFn }) {
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-900">Top Products</h2>
+        <h2 className="text-base font-semibold text-gray-900">{t("dashboard.topProducts")}</h2>
         <button
           type="button"
           className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
         >
-          This Week
+          {t("dashboard.thisWeek")}
         </button>
       </div>
 
@@ -41,7 +42,7 @@ export function TopProducts({ data }: { data: TopProduct[] }) {
         type="button"
         className="mt-4 flex items-center gap-1.5 text-sm font-medium text-amber-700 hover:text-amber-800"
       >
-        View all products
+        {t("dashboard.viewAllProducts")}
         <ArrowRightIcon className="h-3.5 w-3.5" />
       </button>
     </div>

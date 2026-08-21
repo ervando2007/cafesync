@@ -5,6 +5,8 @@ import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { requireRole } from "@/lib/auth-guard";
 import pool from "@/lib/db";
+import { getT } from "@/lib/i18n/server";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 const PRODUCT_IMAGE_DIR = path.join(process.cwd(), "public", "uploads", "products");
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -24,10 +26,10 @@ interface OutletInput {
   timezone: string;
 }
 
-function validateOutletInput(input: OutletInput): string | null {
-  if (!input.code.trim()) return "Outlet code is required.";
-  if (!input.name.trim()) return "Outlet name is required.";
-  if (!input.timezone.trim()) return "Timezone is required.";
+function validateOutletInput(input: OutletInput, t: TranslateFn): string | null {
+  if (!input.code.trim()) return t("masterData.errOutletCodeRequired");
+  if (!input.name.trim()) return t("masterData.errOutletNameRequired");
+  if (!input.timezone.trim()) return t("masterData.errTimezoneRequired");
   return null;
 }
 
@@ -42,7 +44,8 @@ function isDuplicateCodeError(error: unknown): boolean {
 
 export async function createOutlet(input: OutletInput): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateOutletInput(input);
+  const { t } = await getT();
+  const validationError = validateOutletInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   try {
@@ -54,16 +57,17 @@ export async function createOutlet(input: OutletInput): Promise<ActionResult> {
     return { ok: true };
   } catch (error) {
     if (isDuplicateCodeError(error)) {
-      return { ok: false, message: "An outlet with this code already exists." };
+      return { ok: false, message: t("masterData.errOutletCodeExists") };
     }
     console.error("createOutlet failed", error);
-    return { ok: false, message: "Could not save outlet. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotSaveOutlet") };
   }
 }
 
 export async function updateOutlet(input: OutletInput & { id: number }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateOutletInput(input);
+  const { t } = await getT();
+  const validationError = validateOutletInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   try {
@@ -78,15 +82,15 @@ export async function updateOutlet(input: OutletInput & { id: number }): Promise
       ],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Outlet not found." };
+      return { ok: false, message: t("masterData.errOutletNotFound") };
     }
     return { ok: true };
   } catch (error) {
     if (isDuplicateCodeError(error)) {
-      return { ok: false, message: "An outlet with this code already exists." };
+      return { ok: false, message: t("masterData.errOutletCodeExists") };
     }
     console.error("updateOutlet failed", error);
-    return { ok: false, message: "Could not save outlet. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotSaveOutlet") };
   }
 }
 
@@ -95,8 +99,9 @@ export async function setOutletStatus(input: {
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
-    return { ok: false, message: "Invalid status." };
+    return { ok: false, message: t("inventory.errInvalidStatus") };
   }
 
   try {
@@ -105,12 +110,12 @@ export async function setOutletStatus(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Outlet not found." };
+      return { ok: false, message: t("masterData.errOutletNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("setOutletStatus failed", error);
-    return { ok: false, message: "Could not update outlet status. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotUpdateOutletStatus") };
   }
 }
 
@@ -127,16 +132,17 @@ interface ProductInput {
   baseUnitId: number | null;
 }
 
-function validateProductInput(input: ProductInput): string | null {
-  if (!input.sku.trim()) return "SKU is required.";
-  if (!input.name.trim()) return "Name is required.";
-  if (!PRODUCT_TYPES.includes(input.productType)) return "Invalid product type.";
+function validateProductInput(input: ProductInput, t: TranslateFn): string | null {
+  if (!input.sku.trim()) return t("inventory.errSkuRequired");
+  if (!input.name.trim()) return t("inventory.errNameRequired");
+  if (!PRODUCT_TYPES.includes(input.productType)) return t("masterData.errInvalidProductType");
   return null;
 }
 
 export async function createProduct(input: ProductInput): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateProductInput(input);
+  const { t } = await getT();
+  const validationError = validateProductInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   try {
@@ -155,16 +161,17 @@ export async function createProduct(input: ProductInput): Promise<ActionResult> 
     return { ok: true };
   } catch (error) {
     if (isDuplicateCodeError(error)) {
-      return { ok: false, message: "A product with this SKU already exists." };
+      return { ok: false, message: t("masterData.errProductSkuExists") };
     }
     console.error("createProduct failed", error);
-    return { ok: false, message: "Could not save product. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotSaveProduct") };
   }
 }
 
 export async function updateProduct(input: ProductInput & { id: number }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateProductInput(input);
+  const { t } = await getT();
+  const validationError = validateProductInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   try {
@@ -182,15 +189,15 @@ export async function updateProduct(input: ProductInput & { id: number }): Promi
       ],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Product not found." };
+      return { ok: false, message: t("masterData.errProductNotFound") };
     }
     return { ok: true };
   } catch (error) {
     if (isDuplicateCodeError(error)) {
-      return { ok: false, message: "A product with this SKU already exists." };
+      return { ok: false, message: t("masterData.errProductSkuExists") };
     }
     console.error("updateProduct failed", error);
-    return { ok: false, message: "Could not save product. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotSaveProduct") };
   }
 }
 
@@ -199,8 +206,9 @@ export async function setProductStatus(input: {
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
-    return { ok: false, message: "Invalid status." };
+    return { ok: false, message: t("inventory.errInvalidStatus") };
   }
 
   try {
@@ -209,12 +217,12 @@ export async function setProductStatus(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Product not found." };
+      return { ok: false, message: t("masterData.errProductNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("setProductStatus failed", error);
-    return { ok: false, message: "Could not update product status. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotUpdateProductStatus") };
   }
 }
 
@@ -228,11 +236,12 @@ export async function upsertOutletProduct(input: {
   isAvailable: boolean;
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!Number.isFinite(input.sellingPrice) || input.sellingPrice < 0) {
-    return { ok: false, message: "Selling price cannot be negative." };
+    return { ok: false, message: t("masterData.errSellingPriceNegative") };
   }
   if (!Number.isFinite(input.taxRate) || input.taxRate < 0) {
-    return { ok: false, message: "Tax rate cannot be negative." };
+    return { ok: false, message: t("masterData.errTaxRateNegative") };
   }
 
   try {
@@ -246,7 +255,7 @@ export async function upsertOutletProduct(input: {
     return { ok: true };
   } catch (error) {
     console.error("upsertOutletProduct failed", error);
-    return { ok: false, message: "Could not save outlet pricing. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotSaveOutletPricing") };
   }
 }
 
@@ -255,6 +264,7 @@ export async function removeOutletProduct(input: {
   productId: number;
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
 
   try {
     await pool.query("DELETE FROM outlet_products WHERE outlet_id = ? AND product_id = ?", [
@@ -264,7 +274,7 @@ export async function removeOutletProduct(input: {
     return { ok: true };
   } catch (error) {
     console.error("removeOutletProduct failed", error);
-    return { ok: false, message: "Could not remove outlet pricing. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotRemoveOutletPricing") };
   }
 }
 
@@ -272,18 +282,19 @@ export async function removeOutletProduct(input: {
 
 export async function createProductCategory(input: { name: string }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   const name = input.name.trim();
-  if (!name) return { ok: false, message: "Category name is required." };
+  if (!name) return { ok: false, message: t("inventory.errCategoryNameRequired") };
 
   try {
     await pool.query("INSERT INTO categories (name, status) VALUES (?, 'ACTIVE')", [name]);
     return { ok: true };
   } catch (error) {
     if (isDuplicateCodeError(error)) {
-      return { ok: false, message: "A category with this name already exists." };
+      return { ok: false, message: t("inventory.errCategoryExists") };
     }
     console.error("createProductCategory failed", error);
-    return { ok: false, message: "Could not save category. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveCategory") };
   }
 }
 
@@ -292,8 +303,9 @@ export async function updateProductCategory(input: {
   name: string;
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   const name = input.name.trim();
-  if (!name) return { ok: false, message: "Category name is required." };
+  if (!name) return { ok: false, message: t("inventory.errCategoryNameRequired") };
 
   try {
     const [result] = await pool.query("UPDATE categories SET name = ? WHERE id = ?", [
@@ -301,15 +313,15 @@ export async function updateProductCategory(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Category not found." };
+      return { ok: false, message: t("inventory.errCategoryNotFound") };
     }
     return { ok: true };
   } catch (error) {
     if (isDuplicateCodeError(error)) {
-      return { ok: false, message: "A category with this name already exists." };
+      return { ok: false, message: t("inventory.errCategoryExists") };
     }
     console.error("updateProductCategory failed", error);
-    return { ok: false, message: "Could not save category. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveCategory") };
   }
 }
 
@@ -318,8 +330,9 @@ export async function setProductCategoryStatus(input: {
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
-    return { ok: false, message: "Invalid status." };
+    return { ok: false, message: t("inventory.errInvalidStatus") };
   }
 
   try {
@@ -328,12 +341,12 @@ export async function setProductCategoryStatus(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Category not found." };
+      return { ok: false, message: t("inventory.errCategoryNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("setProductCategoryStatus failed", error);
-    return { ok: false, message: "Could not update category status. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotUpdateCategoryStatus") };
   }
 }
 
@@ -358,16 +371,17 @@ export async function uploadProductImage(
   formData: FormData,
 ): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
 
   const file = formData.get("image");
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, message: "Choose an image file to upload." };
+    return { ok: false, message: t("masterData.errChooseImageFile") };
   }
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    return { ok: false, message: "Only JPEG, PNG, or WebP images are allowed." };
+    return { ok: false, message: t("masterData.errImageTypeNotAllowed") };
   }
   if (file.size > MAX_IMAGE_BYTES) {
-    return { ok: false, message: "Image must be 4MB or smaller." };
+    return { ok: false, message: t("masterData.errImageTooLarge") };
   }
 
   try {
@@ -387,19 +401,20 @@ export async function uploadProductImage(
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
       await deleteImageFile(imageUrl);
-      return { ok: false, message: "Product not found." };
+      return { ok: false, message: t("masterData.errProductNotFound") };
     }
 
     if (previousImageUrl) await deleteImageFile(previousImageUrl);
     return { ok: true };
   } catch (error) {
     console.error("uploadProductImage failed", error);
-    return { ok: false, message: "Could not upload image. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotUploadImage") };
   }
 }
 
 export async function removeProductImage(productId: number): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
 
   try {
     const previousImageUrl = await getCurrentImageUrl(productId);
@@ -407,12 +422,12 @@ export async function removeProductImage(productId: number): Promise<ActionResul
       productId,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Product not found." };
+      return { ok: false, message: t("masterData.errProductNotFound") };
     }
     if (previousImageUrl) await deleteImageFile(previousImageUrl);
     return { ok: true };
   } catch (error) {
     console.error("removeProductImage failed", error);
-    return { ok: false, message: "Could not remove image. Please try again." };
+    return { ok: false, message: t("masterData.errCouldNotRemoveImage") };
   }
 }

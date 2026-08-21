@@ -6,6 +6,8 @@ import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
 import { InventoryStatCard } from "@/app/ui/inventory/stat-card";
 import { DollarSignIcon, TrendingUpIcon, WalletIcon } from "@/app/ui/dashboard/icons";
 import { AlertTriangleIcon } from "@/app/ui/inventory/icons";
+import { getT } from "@/lib/i18n/server";
+import { PageHeader } from "@/app/ui/page-header";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
 
@@ -28,6 +30,7 @@ export default async function CashFlowPage({
   searchParams: Promise<{ outlet?: string; from?: string; to?: string }>;
 }) {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   const outlets = await getOutletsForUser(session);
   const params = await searchParams;
 
@@ -43,44 +46,39 @@ export default async function CashFlowPage({
   const report = await getCashFlowReport(selectedOutletId, `${from} 00:00:00`, `${to} 23:59:59`);
 
   return (
-    <div className="p-6 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-gray-400">Accounting</p>
-          <h1 className="text-2xl font-bold text-gray-900">Cash Flow</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
-          <DateRangeSelect from={from} to={to} />
-        </div>
-      </div>
+    <>
+      <PageHeader eyebrow={t("nav.accounting")} title={t("nav.cashFlow")}>
+        <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
+        <DateRangeSelect from={from} to={to} />
+      </PageHeader>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <InventoryStatCard
-          label="Opening Balance"
+          label={t("dashboard.openingBalance")}
           value={formatRp(report.openingBalance)}
-          caption="Before selected period"
+          caption={t("accounting.beforeSelectedPeriod")}
           icon={WalletIcon}
           accent="blue"
         />
         <InventoryStatCard
-          label="Cash In"
+          label={t("dashboard.cashIn")}
           value={formatRp(report.cashIn)}
-          caption="In selected period"
+          caption={t("inventory.inSelectedPeriod")}
           icon={TrendingUpIcon}
           accent="emerald"
         />
         <InventoryStatCard
-          label="Cash Out"
+          label={t("dashboard.cashOut")}
           value={formatRp(report.cashOut)}
-          caption="In selected period"
+          caption={t("inventory.inSelectedPeriod")}
           icon={AlertTriangleIcon}
           accent="red"
         />
         <InventoryStatCard
-          label="Closing Balance"
+          label={t("dashboard.closingBalance")}
           value={formatRp(report.closingBalance)}
-          caption="End of selected period"
+          caption={t("accounting.endOfSelectedPeriod")}
           icon={DollarSignIcon}
           accent="amber"
         />
@@ -88,24 +86,25 @@ export default async function CashFlowPage({
 
       <div className="mt-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-          <span className="text-sm text-gray-500">Opening Balance</span>
+          <span className="text-sm text-gray-500">{t("dashboard.openingBalance")}</span>
           <span className="font-medium text-gray-900">{formatRp(report.openingBalance)}</span>
         </div>
         <div className="flex items-center justify-between border-b border-gray-100 py-3">
-          <span className="text-sm text-gray-500">+ Cash In</span>
+          <span className="text-sm text-gray-500">{t("accounting.plusCashIn")}</span>
           <span className="font-medium text-emerald-600">{formatRp(report.cashIn)}</span>
         </div>
         <div className="flex items-center justify-between border-b border-gray-100 py-3">
-          <span className="text-sm text-gray-500">− Cash Out</span>
+          <span className="text-sm text-gray-500">{t("accounting.minusCashOut")}</span>
           <span className="font-medium text-red-600">{formatRp(report.cashOut)}</span>
         </div>
         <div className="flex items-center justify-between pt-3">
-          <span className="text-base font-semibold text-gray-900">Closing Balance</span>
+          <span className="text-base font-semibold text-gray-900">{t("dashboard.closingBalance")}</span>
           <span className="text-xl font-bold text-amber-700">
             {formatRp(report.closingBalance)}
           </span>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

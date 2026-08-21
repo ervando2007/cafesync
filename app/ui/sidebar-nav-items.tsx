@@ -3,70 +3,85 @@ import {
   CalculatorIcon,
   DatabaseIcon,
   GridIcon,
+  ReportIcon,
   SettingsIcon,
   ShoppingCartIcon,
 } from "@/app/ui/dashboard/icons";
 import type { SidebarNavItem } from "@/app/ui/sidebar-nav";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
-export const dashboardNavItem: SidebarNavItem = {
-  label: "Dashboard",
-  icon: GridIcon,
-  href: "/dashboard",
-};
+function navItemsByMenuKey(t: TranslateFn): { key: string; item: SidebarNavItem }[] {
+  return [
+    { key: "dashboard", item: { label: t("nav.dashboard"), icon: GridIcon, href: "/dashboard" } },
+    { key: "pos", item: { label: t("nav.pos"), icon: ShoppingCartIcon, href: "/pos" } },
+    {
+      key: "inventory",
+      item: {
+        label: t("nav.inventory"),
+        icon: BoxIcon,
+        children: [
+          { label: t("nav.items"), href: "/inventory/items" },
+          { label: t("nav.stockIn"), href: "/inventory/stock-in" },
+          { label: t("nav.stockOut"), href: "/inventory/stock-out" },
+          { label: t("nav.adjustments"), href: "/inventory/adjustments" },
+          { label: t("nav.transfers"), href: "/inventory/transfers" },
+          { label: t("nav.recipe"), href: "/inventory/recipe" },
+          { label: t("nav.hpp"), href: "/inventory/hpp" },
+        ],
+      },
+    },
+    {
+      key: "master_data",
+      item: {
+        label: t("nav.masterData"),
+        icon: DatabaseIcon,
+        children: [
+          { label: t("nav.outlets"), href: "/master-data/outlets" },
+          { label: t("nav.products"), href: "/master-data/products" },
+        ],
+      },
+    },
+    {
+      key: "accounting",
+      item: {
+        label: t("nav.accounting"),
+        icon: CalculatorIcon,
+        children: [
+          { label: t("nav.journalEntries"), href: "/accounting/journal" },
+          { label: t("nav.cashTransactions"), href: "/accounting/cash" },
+          { label: t("nav.profitLoss"), href: "/accounting/profit-loss" },
+          { label: t("nav.cashFlow"), href: "/accounting/cash-flow" },
+        ],
+      },
+    },
+    {
+      key: "reports",
+      item: {
+        label: t("nav.reports"),
+        icon: ReportIcon,
+        children: [
+          { label: t("nav.salesReport"), href: "/reports/sales" },
+          { label: t("nav.stockReport"), href: "/reports/stock" },
+          { label: t("nav.profitLossReport"), href: "/reports/profit-loss" },
+          { label: t("nav.cashReport"), href: "/reports/cash" },
+          { label: t("nav.bankReport"), href: "/reports/bank" },
+          { label: t("nav.balanceSheetReport"), href: "/reports/balance-sheet" },
+        ],
+      },
+    },
+    {
+      key: "settings",
+      item: {
+        label: t("nav.settings"),
+        icon: SettingsIcon,
+        children: [{ label: t("nav.userManagement"), href: "/settings/users" }],
+      },
+    },
+  ];
+}
 
-export const posNavItem: SidebarNavItem = { label: "POS", icon: ShoppingCartIcon, href: "/pos" };
-
-export const masterDataNavItem: SidebarNavItem = {
-  label: "Master Data",
-  icon: DatabaseIcon,
-  children: [
-    { label: "Outlets", href: "/master-data/outlets" },
-    { label: "Products", href: "/master-data/products" },
-  ],
-};
-
-export const inventoryNavItem: SidebarNavItem = {
-  label: "Inventory",
-  icon: BoxIcon,
-  children: [
-    { label: "Items", href: "/inventory/items" },
-    { label: "Stock In", href: "/inventory/stock-in" },
-    { label: "Stock Out", href: "/inventory/stock-out" },
-    { label: "Adjustments", href: "/inventory/adjustments" },
-    { label: "Transfers", href: "/inventory/transfers" },
-    { label: "Recipe", href: "/inventory/recipe" },
-    { label: "HPP", href: "/inventory/hpp" },
-  ],
-};
-
-export const settingsNavItem: SidebarNavItem = {
-  label: "Settings",
-  icon: SettingsIcon,
-  children: [{ label: "User Management", href: "/settings/users" }],
-};
-
-export const accountingNavItem: SidebarNavItem = {
-  label: "Accounting",
-  icon: CalculatorIcon,
-  children: [
-    { label: "Journal Entries", href: "/accounting/journal" },
-    { label: "Cash Transactions", href: "/accounting/cash" },
-    { label: "Profit & Loss", href: "/accounting/profit-loss" },
-    { label: "Cash Flow", href: "/accounting/cash-flow" },
-  ],
-};
-
-const NAV_ITEMS_BY_MENU_KEY: { key: string; item: SidebarNavItem }[] = [
-  { key: "dashboard", item: dashboardNavItem },
-  { key: "pos", item: posNavItem },
-  { key: "inventory", item: inventoryNavItem },
-  { key: "master_data", item: masterDataNavItem },
-  { key: "accounting", item: accountingNavItem },
-  { key: "settings", item: settingsNavItem },
-];
-
-export function navItemsForMenuKeys(visibleMenuKeys: string[]): SidebarNavItem[] {
-  return NAV_ITEMS_BY_MENU_KEY.filter(({ key }) => visibleMenuKeys.includes(key)).map(
-    ({ item }) => item,
-  );
+export function navItemsForMenuKeys(visibleMenuKeys: string[], t: TranslateFn): SidebarNavItem[] {
+  return navItemsByMenuKey(t)
+    .filter(({ key }) => visibleMenuKeys.includes(key))
+    .map(({ item }) => item);
 }

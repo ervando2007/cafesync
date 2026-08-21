@@ -3,6 +3,8 @@
 import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
 import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
+import { getT } from "@/lib/i18n/server";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER"];
 
@@ -24,19 +26,19 @@ interface RecipeInput {
   items: RecipeItemInput[];
 }
 
-function validateRecipeInput(input: RecipeInput): string | null {
+function validateRecipeInput(input: RecipeInput, t: TranslateFn): string | null {
   if (!Number.isFinite(input.productId) || input.productId <= 0) {
-    return "Select a product for this recipe.";
+    return t("inventory.errSelectProduct");
   }
   if (!Number.isFinite(input.yieldQty) || input.yieldQty <= 0) {
-    return "Yield must be greater than zero.";
+    return t("inventory.errYieldPositive");
   }
-  if (!input.items.length) return "Add at least one ingredient.";
+  if (!input.items.length) return t("inventory.errAddIngredient");
   for (const item of input.items) {
-    if (item.qty <= 0) return "Ingredient quantity must be greater than zero.";
+    if (item.qty <= 0) return t("inventory.errIngredientQtyPositive");
   }
   const seen = new Set(input.items.map((i) => i.stockItemId));
-  if (seen.size !== input.items.length) return "Each ingredient can only appear once.";
+  if (seen.size !== input.items.length) return t("inventory.errDuplicateIngredient");
   return null;
 }
 
@@ -57,10 +59,11 @@ async function replaceRecipeItems(
 
 export async function createRecipe(input: RecipeInput): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("inventory.errNoOutletAccess") };
   }
-  const validationError = validateRecipeInput(input);
+  const validationError = validateRecipeInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   const conn = await pool.getConnection();
@@ -73,7 +76,7 @@ export async function createRecipe(input: RecipeInput): Promise<ActionResult> {
     );
     if (existing.length) {
       await conn.rollback();
-      return { ok: false, message: "This product already has a recipe at this outlet." };
+      return { ok: false, message: t("inventory.errRecipeExists") };
     }
 
     const [result] = await conn.query(
@@ -96,7 +99,7 @@ export async function createRecipe(input: RecipeInput): Promise<ActionResult> {
   } catch (error) {
     await conn.rollback();
     console.error("createRecipe failed", error);
-    return { ok: false, message: "Could not save recipe. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveRecipe") };
   } finally {
     conn.release();
   }
@@ -106,15 +109,16 @@ export async function updateRecipe(
   input: Omit<RecipeInput, "productId"> & { recipeId: number },
 ): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("inventory.errNoOutletAccess") };
   }
   if (!Number.isFinite(input.yieldQty) || input.yieldQty <= 0) {
-    return { ok: false, message: "Yield must be greater than zero." };
+    return { ok: false, message: t("inventory.errYieldPositive") };
   }
-  if (!input.items.length) return { ok: false, message: "Add at least one ingredient." };
+  if (!input.items.length) return { ok: false, message: t("inventory.errAddIngredient") };
   for (const item of input.items) {
-    if (item.qty <= 0) return { ok: false, message: "Ingredient quantity must be greater than zero." };
+    if (item.qty <= 0) return { ok: false, message: t("inventory.errIngredientQtyPositive") };
   }
 
   const conn = await pool.getConnection();
@@ -127,7 +131,7 @@ export async function updateRecipe(
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       await conn.rollback();
-      return { ok: false, message: "Recipe not found." };
+      return { ok: false, message: t("inventory.errRecipeNotFound") };
     }
 
     await replaceRecipeItems(conn, input.recipeId, input.items);
@@ -137,7 +141,7 @@ export async function updateRecipe(
   } catch (error) {
     await conn.rollback();
     console.error("updateRecipe failed", error);
-    return { ok: false, message: "Could not save recipe. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveRecipe") };
   } finally {
     conn.release();
   }
@@ -149,8 +153,9 @@ export async function setRecipeStatus(input: {
   isActive: boolean;
 }): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("inventory.errNoOutletAccess") };
   }
 
   try {
@@ -159,11 +164,11 @@ export async function setRecipeStatus(input: {
       [input.isActive ? 1 : 0, Number(session.user.id), input.recipeId, input.outletId],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Recipe not found." };
+      return { ok: false, message: t("inventory.errRecipeNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("setRecipeStatus failed", error);
-    return { ok: false, message: "Could not update recipe status. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotUpdateRecipeStatus") };
   }
 }

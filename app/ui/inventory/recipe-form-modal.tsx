@@ -11,6 +11,7 @@ import { createRecipe, updateRecipe } from "@/app/inventory/recipe-actions";
 import type { RecipeableProduct } from "@/lib/recipes";
 import type { RecipeIngredientRow } from "@/lib/recipes";
 import type { StockItemOption } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
 
 export function RecipeFormModal({
   mode,
@@ -28,6 +29,7 @@ export function RecipeFormModal({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const creatableProducts = products.filter((p) => !p.hasRecipe);
   const [productId, setProductId] = useState<number>(creatableProducts[0]?.productId ?? 0);
   const [yieldQty, setYieldQty] = useState<number>(recipe?.yieldQty ?? 1);
@@ -49,7 +51,7 @@ export function RecipeFormModal({
   function handleSubmit() {
     setError(null);
     if (lines.some((l) => l.qty <= 0)) {
-      setError("Every ingredient needs a quantity greater than zero.");
+      setError(t("inventory.ingredientQtyError"));
       return;
     }
 
@@ -62,7 +64,7 @@ export function RecipeFormModal({
           : await updateRecipe({ outletId, recipeId: recipe!.recipeId, yieldQty, items });
 
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       router.refresh();
@@ -75,13 +77,15 @@ export function RecipeFormModal({
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">
-            {mode === "create" ? "New Recipe" : `Edit Recipe — ${recipe?.productName}`}
+            {mode === "create"
+              ? t("inventory.newRecipe")
+              : t("inventory.editRecipeTitle", { name: recipe?.productName ?? "" })}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -95,14 +99,14 @@ export function RecipeFormModal({
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-gray-500">Product</label>
+            <label className="text-xs text-gray-500">{t("inventory.product")}</label>
             {mode === "create" ? (
               <select
                 value={productId}
                 onChange={(e) => setProductId(Number(e.target.value))}
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
               >
-                {creatableProducts.length === 0 && <option value={0}>No products available</option>}
+                {creatableProducts.length === 0 && <option value={0}>{t("inventory.noProductsAvailable")}</option>}
                 {creatableProducts.map((p) => (
                   <option key={p.productId} value={p.productId}>
                     {p.name} ({p.sku})
@@ -116,7 +120,7 @@ export function RecipeFormModal({
             )}
           </div>
           <div>
-            <label className="text-xs text-gray-500">Yield (servings)</label>
+            <label className="text-xs text-gray-500">{t("inventory.yieldServings")}</label>
             <input
               type="number"
               min={0.01}
@@ -138,7 +142,7 @@ export function RecipeFormModal({
             onClick={onClose}
             className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -146,7 +150,7 @@ export function RecipeFormModal({
             disabled={isPending || (mode === "create" && creatableProducts.length === 0)}
             className="rounded-xl bg-amber-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isPending ? "Saving..." : "Save Recipe"}
+            {isPending ? t("common.saving") : t("inventory.saveRecipe")}
           </button>
         </div>
       </div>

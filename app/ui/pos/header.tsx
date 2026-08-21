@@ -2,12 +2,23 @@ import { ChevronDownIcon } from "@/app/ui/icons";
 import { BellIcon, StoreIcon } from "@/app/ui/dashboard/icons";
 import type { OrderChannel } from "@/app/pos/actions";
 import type { DiningTableOption, OutletOption } from "@/lib/pos";
+import { useI18n } from "@/app/i18n-provider";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
-const ORDER_TYPES: { value: OrderChannel; label: string }[] = [
-  { value: "DINE_IN_STAFF", label: "Dine In" },
-  { value: "TAKEAWAY", label: "Take Away" },
-  { value: "DELIVERY", label: "Delivery" },
-];
+function orderTypes(t: TranslateFn): { value: OrderChannel; label: string }[] {
+  return [
+    { value: "DINE_IN_STAFF", label: t("pos.dineIn") },
+    { value: "TAKEAWAY", label: t("pos.takeaway") },
+    { value: "DELIVERY", label: t("pos.delivery") },
+  ];
+}
+
+const TABLE_STATUS_KEYS: Record<string, "pos.tableStatusAvailable" | "pos.tableStatusOccupied" | "pos.tableStatusReserved" | "pos.tableStatusInactive"> = {
+  AVAILABLE: "pos.tableStatusAvailable",
+  OCCUPIED: "pos.tableStatusOccupied",
+  RESERVED: "pos.tableStatusReserved",
+  INACTIVE: "pos.tableStatusInactive",
+};
 
 export function PosHeader({
   outlets,
@@ -32,13 +43,15 @@ export function PosHeader({
   userName: string;
   userRole: string;
 }) {
+  const { t } = useI18n();
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
+  const ORDER_TYPES = orderTypes(t);
 
   return (
     <div className="flex flex-wrap items-end justify-between gap-4 border-b border-gray-200 bg-white px-6 py-4">
       <div className="flex flex-wrap items-end gap-6">
         <div>
-          <label className="text-xs text-gray-500">Outlet</label>
+          <label className="text-xs text-gray-500">{t("pos.outlet")}</label>
           <div className="relative mt-1">
             <select
               value={selectedOutletId}
@@ -56,7 +69,7 @@ export function PosHeader({
         </div>
 
         <div>
-          <label className="text-xs text-gray-500">Order Type</label>
+          <label className="text-xs text-gray-500">{t("pos.orderTypeLabel")}</label>
           <div className="mt-1 flex rounded-lg border border-gray-200 p-0.5">
             {ORDER_TYPES.map((type) => (
               <button
@@ -77,7 +90,7 @@ export function PosHeader({
 
         {orderType === "DINE_IN_STAFF" && (
           <div>
-            <label className="text-xs text-gray-500">Table</label>
+            <label className="text-xs text-gray-500">{t("pos.table")}</label>
             <div className="relative mt-1">
               <StoreIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <select
@@ -85,14 +98,17 @@ export function PosHeader({
                 onChange={(e) => onTableChange(e.target.value ? Number(e.target.value) : null)}
                 className="appearance-none rounded-lg border border-gray-200 py-2 pl-8 pr-8 text-sm font-semibold text-gray-900 focus:border-amber-500 focus:outline-none"
               >
-                <option value="">Select table</option>
+                <option value="">{t("pos.selectTablePlaceholder")}</option>
                 {tables.map((table) => (
                   <option
                     key={table.id}
                     value={table.id}
                     disabled={table.status === "OCCUPIED" && table.id !== tableId}
                   >
-                    {table.name} {table.status !== "AVAILABLE" ? `(${table.status})` : ""}
+                    {table.name}{" "}
+                    {table.status !== "AVAILABLE" && TABLE_STATUS_KEYS[table.status]
+                      ? `(${t(TABLE_STATUS_KEYS[table.status])})`
+                      : ""}
                   </option>
                 ))}
               </select>

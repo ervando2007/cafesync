@@ -19,6 +19,8 @@ import { WalletIcon } from "@/app/ui/dashboard/icons";
 import type { PaymentMethod } from "@/app/pos/actions";
 import type { HeldOrderSummary } from "@/lib/pos";
 import type { CartLine } from "@/app/ui/pos/pos-terminal";
+import { useI18n } from "@/app/i18n-provider";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -28,13 +30,15 @@ function roundUpTo(value: number, step: number) {
   return Math.ceil(value / step) * step;
 }
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof CardIcon }[] = [
-  { value: "CASH", label: "Cash", icon: WalletIcon },
-  { value: "CARD", label: "Card", icon: CardIcon },
-  { value: "QRIS", label: "QRIS", icon: QrCodeIcon },
-  { value: "BANK_TRANSFER", label: "E-Wallet", icon: WalletIcon },
-  { value: "OTHER", label: "Split Pay", icon: SplitIcon },
-];
+function paymentOptions(t: TranslateFn): { value: PaymentMethod; label: string; icon: typeof CardIcon }[] {
+  return [
+    { value: "CASH", label: t("pos.cash"), icon: WalletIcon },
+    { value: "CARD", label: t("pos.card"), icon: CardIcon },
+    { value: "QRIS", label: t("pos.qris"), icon: QrCodeIcon },
+    { value: "BANK_TRANSFER", label: t("pos.eWallet"), icon: WalletIcon },
+    { value: "OTHER", label: t("pos.splitPay"), icon: SplitIcon },
+  ];
+}
 
 export function CartPanel({
   orderLabel,
@@ -81,6 +85,8 @@ export function CartPanel({
   onResumeHeld: (orderId: number) => void;
   onCancelHeld: (orderId: number) => void;
 }) {
+  const { t } = useI18n();
+  const PAYMENT_OPTIONS = paymentOptions(t);
   const [cashReceived, setCashReceived] = useState("");
   const [showHeld, setShowHeld] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
@@ -125,7 +131,7 @@ export function CartPanel({
             className="mt-0.5 flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-800"
           >
             <ClockIcon className="h-3.5 w-3.5" />
-            Held orders ({heldOrders.length})
+            {t("pos.heldOrdersCount", { count: heldOrders.length })}
           </button>
         </div>
         <button
@@ -134,7 +140,7 @@ export function CartPanel({
           disabled={cart.length === 0}
           className="flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-40"
         >
-          Clear Order
+          {t("pos.clearOrder")}
           <TrashIcon className="h-4 w-4" />
         </button>
       </div>
@@ -142,7 +148,7 @@ export function CartPanel({
       {showHeld && (
         <div className="max-h-48 overflow-y-auto border-b border-gray-100 bg-gray-50 p-3">
           {heldOrders.length === 0 ? (
-            <p className="px-2 py-3 text-center text-xs text-gray-400">No held orders.</p>
+            <p className="px-2 py-3 text-center text-xs text-gray-400">{t("pos.noHeldOrdersPeriod")}</p>
           ) : (
             <ul className="space-y-1.5">
               {heldOrders.map((order) => (
@@ -153,7 +159,7 @@ export function CartPanel({
                   <div>
                     <p className="font-semibold text-gray-800">{order.orderNo}</p>
                     <p className="text-gray-400">
-                      {order.itemCount} items · {formatRp(order.grandTotal)}
+                      {t("pos.itemsCount", { count: order.itemCount })} · {formatRp(order.grandTotal)}
                     </p>
                     {(order.guestName || order.tableName) && (
                       <p className="font-medium text-amber-700">
@@ -167,7 +173,7 @@ export function CartPanel({
                       onClick={() => onResumeHeld(order.id)}
                       className="font-medium text-amber-700 hover:text-amber-800"
                     >
-                      Resume
+                      {t("pos.resume")}
                     </button>
                     <button
                       type="button"
@@ -187,7 +193,7 @@ export function CartPanel({
       <div className="flex-1 overflow-y-auto px-5 py-4">
         {cart.length === 0 ? (
           <p className="mt-10 text-center text-sm text-gray-400">
-            Tap a menu item to add it to the order.
+            {t("pos.tapMenuItemHint")}
           </p>
         ) : (
           <ul className="space-y-4">
@@ -254,18 +260,18 @@ export function CartPanel({
 
       <div className="space-y-1.5 border-t border-gray-100 px-5 py-4">
         <div className="flex justify-between text-sm text-gray-500">
-          <span>Subtotal</span>
+          <span>{t("pos.subtotal")}</span>
           <span className="text-gray-900">{formatRp(subtotal)}</span>
         </div>
         <div className="flex justify-between text-sm text-gray-500">
           <span>
-            Discount{" "}
+            {t("pos.discount")}{" "}
             <button
               type="button"
               onClick={() => setShowDiscount((v) => !v)}
               className="ml-1 text-xs font-medium text-amber-700 hover:text-amber-800"
             >
-              {showDiscount ? "" : "(edit)"}
+              {showDiscount ? "" : t("pos.editLabel")}
             </button>
           </span>
           {showDiscount ? (
@@ -280,11 +286,11 @@ export function CartPanel({
           )}
         </div>
         <div className="flex justify-between text-sm text-gray-500">
-          <span>Tax</span>
+          <span>{t("pos.tax")}</span>
           <span className="text-gray-900">{formatRp(taxTotal)}</span>
         </div>
         <div className="mt-2 flex items-baseline justify-between border-t border-gray-100 pt-2">
-          <span className="text-base font-semibold text-gray-900">Total</span>
+          <span className="text-base font-semibold text-gray-900">{t("pos.total")}</span>
           <span className="text-xl font-bold text-amber-700">{formatRp(grandTotal)}</span>
         </div>
       </div>
@@ -296,7 +302,7 @@ export function CartPanel({
           disabled={cart.length === 0 || isSubmitting}
           className="rounded-xl bg-amber-700 py-2.5 text-center text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Pay
+          {t("pos.pay")}
           <span className="block text-[10px] font-normal text-amber-100">F9</span>
         </button>
         <button
@@ -305,7 +311,7 @@ export function CartPanel({
           disabled={cart.length === 0 || isSubmitting}
           className="rounded-xl border border-gray-200 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Save Order
+          {t("pos.saveOrder")}
           <span className="block text-[10px] font-normal text-gray-400">F10</span>
         </button>
         <button
@@ -315,7 +321,7 @@ export function CartPanel({
           className="flex flex-col items-center rounded-xl border border-gray-200 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="flex items-center gap-1">
-            <BookmarkIcon className="h-3.5 w-3.5" /> Hold
+            <BookmarkIcon className="h-3.5 w-3.5" /> {t("pos.hold")}
           </span>
           <span className="block text-[10px] font-normal text-gray-400">F11</span>
         </button>
@@ -323,7 +329,7 @@ export function CartPanel({
 
       {paymentMethod === "CASH" && (
         <div className="px-5 pt-3">
-          <p className="text-xs text-gray-500">Quick Cash</p>
+          <p className="text-xs text-gray-500">{t("pos.quickCashLabel")}</p>
           <div className="mt-1.5 grid grid-cols-4 gap-1.5">
             {quickCash.map((amount) => (
               <button
@@ -338,13 +344,15 @@ export function CartPanel({
             <input
               value={cashReceived}
               onChange={(e) => setCashReceived(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="Custom"
+              placeholder={t("pos.custom")}
               className="rounded-lg border border-gray-200 px-2 py-1.5 text-center text-xs focus:border-amber-500 focus:outline-none"
             />
           </div>
           {received > 0 && (
             <p className={`mt-1.5 text-xs font-medium ${change >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-              {change >= 0 ? `Change: ${formatRp(change)}` : `Short by ${formatRp(-change)}`}
+              {change >= 0
+                ? t("pos.change", { amount: formatRp(change) })
+                : t("pos.shortBy", { amount: formatRp(-change) })}
             </p>
           )}
         </div>

@@ -7,6 +7,8 @@ import { LineItemEditor, type EditorLine } from "@/app/ui/inventory/line-item-ed
 import { transfer } from "@/app/inventory/actions";
 import type { OutletOption } from "@/lib/pos";
 import type { StockItemOption } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
+import { PageHeader } from "@/app/ui/page-header";
 
 export function TransferForm({
   outlets,
@@ -16,6 +18,7 @@ export function TransferForm({
   outletItems: Record<number, StockItemOption[]>;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [fromOutletId, setFromOutletId] = useState(outlets[0]?.id ?? 0);
   const [toOutletId, setToOutletId] = useState(outlets[1]?.id ?? outlets[0]?.id ?? 0);
   const [lines, setLines] = useState<EditorLine[]>([]);
@@ -36,15 +39,15 @@ export function TransferForm({
   function handleSubmit() {
     setMessage(null);
     if (fromOutletId === toOutletId) {
-      setMessage({ type: "error", text: "Source and destination outlet must be different." });
+      setMessage({ type: "error", text: t("inventory.sourceDestDifferent") });
       return;
     }
     if (lines.length === 0) {
-      setMessage({ type: "error", text: "Add at least one item." });
+      setMessage({ type: "error", text: t("inventory.addAtLeastOneItemPeriod") });
       return;
     }
     if (lines.some((l) => l.qty <= 0)) {
-      setMessage({ type: "error", text: "Quantity must be greater than zero." });
+      setMessage({ type: "error", text: t("inventory.qtyMustBeGreaterThanZero") });
       return;
     }
 
@@ -55,22 +58,20 @@ export function TransferForm({
         items: lines.map((l) => ({ stockItemId: l.stockItemId, qty: l.qty })),
       });
       if (!result.ok) {
-        setMessage({ type: "error", text: result.message ?? "Something went wrong." });
+        setMessage({ type: "error", text: result.message ?? t("common.somethingWentWrong") });
         return;
       }
       setLines([]);
-      setMessage({ type: "info", text: "Transfer saved successfully." });
+      setMessage({ type: "info", text: t("inventory.transferSaved") });
       router.refresh();
     });
   }
 
   return (
-    <div className="p-6 sm:p-8">
-      <div>
-        <p className="text-xs font-medium text-gray-400">Inventory</p>
-        <h1 className="text-2xl font-bold text-gray-900">Transfers</h1>
-      </div>
+    <>
+      <PageHeader eyebrow={t("nav.inventory")} title={t("inventory.transfersTitle")} />
 
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
       {message && (
         <div
           className={`mt-4 rounded-xl px-4 py-3 text-sm font-medium ${
@@ -83,7 +84,7 @@ export function TransferForm({
 
       <div className="mt-6 flex flex-wrap items-end gap-4">
         <div>
-          <label className="text-xs text-gray-500">From Outlet</label>
+          <label className="text-xs text-gray-500">{t("inventory.fromOutlet")}</label>
           <div className="relative mt-1">
             <select
               value={fromOutletId}
@@ -103,7 +104,7 @@ export function TransferForm({
         <span className="pb-2.5 text-gray-300">→</span>
 
         <div>
-          <label className="text-xs text-gray-500">To Outlet</label>
+          <label className="text-xs text-gray-500">{t("inventory.toOutlet")}</label>
           <div className="relative mt-1">
             <select
               value={toOutletId}
@@ -139,15 +140,14 @@ export function TransferForm({
           disabled={isPending || outlets.length < 2}
           className="rounded-xl bg-amber-700 px-6 py-3 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isPending ? "Saving..." : "Save Transfer"}
+          {isPending ? t("common.saving") : t("inventory.saveTransfer")}
         </button>
       </div>
 
       {outlets.length < 2 && (
-        <p className="mt-3 text-sm text-gray-400">
-          You need access to at least two outlets to transfer stock.
-        </p>
+        <p className="mt-3 text-sm text-gray-400">{t("inventory.needTwoOutlets")}</p>
       )}
-    </div>
+      </div>
+    </>
   );
 }

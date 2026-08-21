@@ -8,6 +8,8 @@ import { SupplierManagerModal } from "@/app/ui/inventory/supplier-manager-modal"
 import { stockIn } from "@/app/inventory/actions";
 import type { OutletOption } from "@/lib/pos";
 import type { StockItemOption, SupplierRecord } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
+import { PageHeader } from "@/app/ui/page-header";
 
 export function StockInForm({
   outlets,
@@ -21,6 +23,7 @@ export function StockInForm({
   selectedOutletId: number;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [supplierId, setSupplierId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<EditorLine[]>([]);
@@ -38,11 +41,11 @@ export function StockInForm({
   function handleSubmit() {
     setMessage(null);
     if (lines.length === 0) {
-      setMessage({ type: "error", text: "Add at least one item." });
+      setMessage({ type: "error", text: t("inventory.addAtLeastOneItemPeriod") });
       return;
     }
     if (lines.some((l) => l.qty <= 0)) {
-      setMessage({ type: "error", text: "Quantity must be greater than zero." });
+      setMessage({ type: "error", text: t("inventory.qtyMustBeGreaterThanZero") });
       return;
     }
 
@@ -54,27 +57,24 @@ export function StockInForm({
         items: lines.map((l) => ({ stockItemId: l.stockItemId, qty: l.qty, unitCost: l.unitCost })),
       });
       if (!result.ok) {
-        setMessage({ type: "error", text: result.message ?? "Something went wrong." });
+        setMessage({ type: "error", text: result.message ?? t("common.somethingWentWrong") });
         return;
       }
       setLines([]);
       setNotes("");
       setSupplierId("");
-      setMessage({ type: "info", text: "Stock in saved successfully." });
+      setMessage({ type: "info", text: t("inventory.stockInSaved") });
       router.refresh();
     });
   }
 
   return (
-    <div className="p-6 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-gray-400">Inventory</p>
-          <h1 className="text-2xl font-bold text-gray-900">Stock In</h1>
-        </div>
+    <>
+      <PageHeader eyebrow={t("nav.inventory")} title={t("nav.stockIn")}>
         <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
-      </div>
+      </PageHeader>
 
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
       {message && (
         <div
           className={`mt-4 rounded-xl px-4 py-3 text-sm font-medium ${
@@ -88,13 +88,13 @@ export function StockInForm({
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-500">Purchase From (Supplier)</label>
+            <label className="text-xs text-gray-500">{t("inventory.purchaseFromSupplier")}</label>
             <button
               type="button"
               onClick={() => setShowSupplierManager(true)}
               className="text-xs font-medium text-amber-700 hover:text-amber-800"
             >
-              Manage
+              {t("common.manage")}
             </button>
           </div>
           <select
@@ -102,7 +102,7 @@ export function StockInForm({
             onChange={(e) => setSupplierId(e.target.value)}
             className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
           >
-            <option value="">No supplier / other</option>
+            <option value="">{t("inventory.noSupplierOther")}</option>
             {activeSuppliers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -111,11 +111,11 @@ export function StockInForm({
           </select>
         </div>
         <div>
-          <label className="text-xs text-gray-500">Notes / Remarks</label>
+          <label className="text-xs text-gray-500">{t("inventory.notesRemarks")}</label>
           <input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. Weekly raw material purchase"
+            placeholder={t("inventory.notesPlaceholderStockIn")}
             className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
           />
         </div>
@@ -132,7 +132,7 @@ export function StockInForm({
 
       <div className="mt-6 flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
         <div>
-          <p className="text-xs text-gray-500">Total Value</p>
+          <p className="text-xs text-gray-500">{t("inventory.totalValue")}</p>
           <p className="text-xl font-bold text-amber-700">
             Rp {Math.round(totalValue).toLocaleString("id-ID")}
           </p>
@@ -143,7 +143,7 @@ export function StockInForm({
           disabled={isPending}
           className="rounded-xl bg-amber-700 px-6 py-3 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isPending ? "Saving..." : "Save Stock In"}
+          {isPending ? t("common.saving") : t("inventory.saveStockIn")}
         </button>
       </div>
 
@@ -153,6 +153,7 @@ export function StockInForm({
           onClose={() => setShowSupplierManager(false)}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }

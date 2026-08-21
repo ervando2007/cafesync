@@ -1,5 +1,6 @@
 import { DineInIcon, TakeawayIcon } from "@/app/ui/dashboard/icons";
 import type { RecentOrder } from "@/lib/dashboard-data";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 const STATUS_CLASSES: Record<RecentOrder["status"], string> = {
   Completed: "bg-emerald-50 text-emerald-700",
@@ -7,16 +8,22 @@ const STATUS_CLASSES: Record<RecentOrder["status"], string> = {
   Preparing: "bg-amber-50 text-amber-700",
 };
 
-export function RecentOrders({ data }: { data: RecentOrder[] }) {
+const STATUS_KEYS: Record<RecentOrder["status"], "dashboard.statusCompleted" | "dashboard.statusPaid" | "dashboard.statusPreparing"> = {
+  Completed: "dashboard.statusCompleted",
+  Paid: "dashboard.statusPaid",
+  Preparing: "dashboard.statusPreparing",
+};
+
+export function RecentOrders({ data, t }: { data: RecentOrder[]; t: TranslateFn }) {
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-900">Recent Orders</h2>
+        <h2 className="text-base font-semibold text-gray-900">{t("dashboard.recentOrders")}</h2>
         <button
           type="button"
           className="text-sm font-medium text-amber-700 hover:text-amber-800"
         >
-          View all orders
+          {t("dashboard.viewAllOrders")}
         </button>
       </div>
 
@@ -37,7 +44,7 @@ export function RecentOrders({ data }: { data: RecentOrder[] }) {
                 <span
                   className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASSES[order.status]}`}
                 >
-                  {order.status}
+                  {t(STATUS_KEYS[order.status])}
                 </span>
                 <p className="mt-1 text-[11px] text-gray-400">{order.time}</p>
               </div>

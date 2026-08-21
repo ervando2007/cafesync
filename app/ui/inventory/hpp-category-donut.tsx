@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { HppByCategoryRow } from "@/lib/hpp";
+import { useI18n } from "@/app/i18n-provider";
 
 const SIZE = 180;
 const CENTER = SIZE / 2;
@@ -16,6 +17,7 @@ function formatRp(value: number) {
 }
 
 export function HppCategoryDonut({ data }: { data: HppByCategoryRow[] }) {
+  const { t } = useI18n();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const total = data.reduce((sum, d) => sum + d.totalHpp, 0);
 
@@ -33,10 +35,10 @@ export function HppCategoryDonut({ data }: { data: HppByCategoryRow[] }) {
 
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-gray-900">HPP by Category</h2>
+      <h2 className="text-base font-semibold text-gray-900">{t("inventory.hppByCategory")}</h2>
 
       {segments.length === 0 ? (
-        <p className="mt-8 py-8 text-center text-sm text-gray-400">No data in this period.</p>
+        <p className="mt-8 py-8 text-center text-sm text-gray-400">{t("inventory.noDataInPeriod")}</p>
       ) : (
         <div className="mt-4 flex flex-col items-center gap-5">
           <div className="relative h-36 w-36 shrink-0">
@@ -61,7 +63,7 @@ export function HppCategoryDonut({ data }: { data: HppByCategoryRow[] }) {
               </g>
             </svg>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <p className="text-[11px] text-gray-400">{active ? active.categoryName : "Total HPP"}</p>
+              <p className="text-[11px] text-gray-400">{active ? active.categoryName : t("inventory.totalHpp")}</p>
               <p className="text-sm font-bold text-gray-900">
                 {formatRp(active ? active.totalHpp : total)}
               </p>

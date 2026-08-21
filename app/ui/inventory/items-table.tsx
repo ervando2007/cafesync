@@ -8,16 +8,20 @@ import { ItemFormModal } from "@/app/ui/inventory/item-form-modal";
 import { CategoryManagerModal } from "@/app/ui/inventory/category-manager-modal";
 import { setStockItemStatus } from "@/app/inventory/actions";
 import type { CategoryOption, StockItemRow, StockStatus, UnitOption } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
 }
 
-const STATUS_LABEL: Record<StockStatus, string> = {
-  IN_STOCK: "In Stock",
-  LOW_STOCK: "Low Stock",
-  OUT_OF_STOCK: "Out of Stock",
-};
+function statusLabels(t: TranslateFn): Record<StockStatus, string> {
+  return {
+    IN_STOCK: t("inventory.statusInStock"),
+    LOW_STOCK: t("inventory.statusLowStock"),
+    OUT_OF_STOCK: t("inventory.statusOutOfStock"),
+  };
+}
 
 const STATUS_CLASSES: Record<StockStatus, string> = {
   IN_STOCK: "bg-emerald-50 text-emerald-700",
@@ -35,6 +39,8 @@ export function ItemsTable({
   categories: CategoryOption[];
 }) {
   const router = useRouter();
+  const { t } = useI18n();
+  const STATUS_LABEL = statusLabels(t);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | StockStatus | "INACTIVE">("ALL");
@@ -78,7 +84,7 @@ export function ItemsTable({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search item name / SKU..."
+            placeholder={t("inventory.searchItemSku")}
             className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm focus:border-amber-500 focus:outline-none"
           />
         </div>
@@ -87,7 +93,7 @@ export function ItemsTable({
           onChange={(e) => setCategoryFilter(e.target.value)}
           className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
         >
-          <option value="ALL">All Categories</option>
+          <option value="ALL">{t("inventory.allCategories")}</option>
           {categoryNames.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -99,18 +105,18 @@ export function ItemsTable({
           onChange={(e) => setStatusFilter(e.target.value as "ALL" | StockStatus | "INACTIVE")}
           className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
         >
-          <option value="ALL">All Status</option>
-          <option value="IN_STOCK">In Stock</option>
-          <option value="LOW_STOCK">Low Stock</option>
-          <option value="OUT_OF_STOCK">Out of Stock</option>
-          <option value="INACTIVE">Inactive</option>
+          <option value="ALL">{t("inventory.allStatus")}</option>
+          <option value="IN_STOCK">{t("inventory.statusInStock")}</option>
+          <option value="LOW_STOCK">{t("inventory.statusLowStock")}</option>
+          <option value="OUT_OF_STOCK">{t("inventory.statusOutOfStock")}</option>
+          <option value="INACTIVE">{t("inventory.statusInactive")}</option>
         </select>
         <button
           type="button"
           onClick={() => setShowCategoryManager(true)}
           className="rounded-lg border border-gray-200 px-3.5 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
         >
-          Categories
+          {t("inventory.categoriesButton")}
         </button>
         <button
           type="button"
@@ -118,7 +124,7 @@ export function ItemsTable({
           className="ml-auto flex items-center gap-1.5 rounded-lg bg-amber-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-800"
         >
           <PlusIcon className="h-3.5 w-3.5" />
-          Add Item
+          {t("inventory.addItem")}
         </button>
       </div>
 
@@ -126,14 +132,14 @@ export function ItemsTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-              <th className="px-5 py-3 font-medium">Item</th>
-              <th className="px-5 py-3 font-medium">Category</th>
-              <th className="px-5 py-3 font-medium">SKU</th>
-              <th className="px-5 py-3 font-medium">Unit</th>
-              <th className="px-5 py-3 font-medium">Stock On Hand</th>
-              <th className="px-5 py-3 font-medium">Unit Cost (Avg)</th>
-              <th className="px-5 py-3 font-medium">Stock Value</th>
-              <th className="px-5 py-3 font-medium">Status</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colItem")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colCategory")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colSku")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colUnit")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colStockOnHand")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colUnitCostAvg")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colStockValue")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colStatus")}</th>
               <th className="px-5 py-3 font-medium"></th>
             </tr>
           </thead>
@@ -141,7 +147,7 @@ export function ItemsTable({
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-5 py-10 text-center text-sm text-gray-400">
-                  No items match your filters.
+                  {t("inventory.noItemsMatchFilters")}
                 </td>
               </tr>
             ) : (
@@ -164,7 +170,7 @@ export function ItemsTable({
                   <td className="px-5 py-3">
                     {item.itemStatus === "INACTIVE" ? (
                       <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
-                        Inactive
+                        {t("inventory.statusInactive")}
                       </span>
                     ) : (
                       <span
@@ -180,7 +186,7 @@ export function ItemsTable({
                         type="button"
                         onClick={() => setModalItem(item)}
                         className="text-gray-400 hover:text-amber-700"
-                        aria-label={`Edit ${item.name}`}
+                        aria-label={t("inventory.editAriaLabel", { name: item.name })}
                       >
                         <EditIcon className="h-4 w-4" />
                       </button>
@@ -190,7 +196,7 @@ export function ItemsTable({
                         disabled={isPending}
                         className="text-xs font-medium text-gray-400 hover:text-gray-700 disabled:opacity-50"
                       >
-                        {item.itemStatus === "ACTIVE" ? "Deactivate" : "Activate"}
+                        {item.itemStatus === "ACTIVE" ? t("common.deactivate") : t("common.activate")}
                       </button>
                     </div>
                   </td>

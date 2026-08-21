@@ -7,6 +7,7 @@ import {
   createGoogleUser,
   findUserByEmail,
   findUserByGoogleSub,
+  findUserById,
   findUserRoleCodes,
   linkGoogleAccount,
   touchLastLogin,
@@ -43,7 +44,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         await touchLastLogin(user.id);
 
-        return { id: String(user.id), email: user.email, name: user.name };
+        return {
+          id: String(user.id),
+          email: user.email,
+          name: user.name,
+          image: user.avatar_url ?? undefined,
+        };
       },
     }),
     Google({
@@ -82,16 +88,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       user.id = String(created.id);
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user?.id) {
         token.sub = user.id;
         token.roles = await findUserRoleCodes(user.id);
+        token.name = user.name;
+        token.email = user.email;
+        token.picture = user.image;
+      }
+      // Fired by the client calling next-auth/react's update() — re-reads the
+      // profile fields from the DB so a self-service name/photo change shows
+      // up immediately instead of waiting for the next full login.
+      if (trigger === "update" && token.sub) {
+        const fresh = await findUserById(token.sub);
+        if (fresh) {
+          token.name = fresh.name;
+          token.email = fresh.email;
+          token.picture = fresh.avatar_url;
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.sub) session.user.id = token.sub;
       if (session.user) session.user.roles = token.roles ?? [];
+      if (session.user) session.user.name = (token.name as string | null) ?? session.user.name;
+      if (session.user) session.user.email = (token.email as string | null) ?? session.user.email;
+      if (session.user) session.user.image = (token.picture as string | null) ?? null;
       return session;
     },
   },

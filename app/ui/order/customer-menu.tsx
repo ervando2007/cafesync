@@ -12,6 +12,16 @@ import { SelectModal } from "@/app/ui/order/select-modal";
 import { SiteFooter } from "@/app/ui/order/site-footer";
 import { placeOrder, type CustomerOrderType } from "@/app/order/actions";
 import type { MenuItem, PublicOutlet, PublicTable } from "@/lib/customer-menu";
+import { useI18n } from "@/app/i18n-provider";
+
+const ALL_MENU = "All Menu";
+
+const TABLE_STATUS_KEYS: Record<string, "pos.tableStatusAvailable" | "pos.tableStatusOccupied" | "pos.tableStatusReserved" | "pos.tableStatusInactive"> = {
+  AVAILABLE: "pos.tableStatusAvailable",
+  OCCUPIED: "pos.tableStatusOccupied",
+  RESERVED: "pos.tableStatusReserved",
+  INACTIVE: "pos.tableStatusInactive",
+};
 
 export interface CartLine {
   productId: number;
@@ -42,13 +52,14 @@ export function CustomerMenu({
   initialOutletId: number | null;
   initialTableId: number | null;
 }) {
+  const { t } = useI18n();
   const [outletId, setOutletId] = useState<number | null>(initialOutletId ?? outlets[0]?.id ?? null);
   const [orderType, setOrderType] = useState<CustomerOrderType>("DINE_IN_QR");
   const [tableId, setTableId] = useState<number | null>(initialTableId);
   const [guestName, setGuestName] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All Menu");
+  const [category, setCategory] = useState(ALL_MENU);
   const [showOutletModal, setShowOutletModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,13 +75,13 @@ export function CustomerMenu({
 
   const categories = useMemo(() => {
     const names = Array.from(new Set(catalog.map((p) => p.categoryName)));
-    return ["All Menu", ...names];
+    return [ALL_MENU, ...names];
   }, [catalog]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return catalog.filter((item) => {
-      const matchesCategory = category === "All Menu" || item.categoryName === category;
+      const matchesCategory = category === ALL_MENU || item.categoryName === category;
       const matchesSearch = !q || item.name.toLowerCase().includes(q);
       return matchesCategory && matchesSearch;
     });
@@ -141,11 +152,11 @@ export function CustomerMenu({
   function handleCheckout() {
     setError(null);
     if (!outletId) {
-      setError("Please select an outlet first.");
+      setError(t("order.selectOutletFirst"));
       return;
     }
     if (cart.length === 0) {
-      setError("Your cart is empty.");
+      setError(t("order.cartEmpty"));
       return;
     }
     if (orderType === "DINE_IN_QR" && !tableId) {
@@ -153,7 +164,7 @@ export function CustomerMenu({
       return;
     }
     if (orderType === "TAKEAWAY" && !guestName.trim()) {
-      setError("Please enter your name.");
+      setError(t("order.enterYourName"));
       return;
     }
 
@@ -177,9 +188,9 @@ export function CustomerMenu({
     const whoText =
       orderType === "DINE_IN_QR"
         ? table
-          ? `to ${table.name} at ${outlet?.name}`
-          : `to ${outlet?.name}`
-        : `for ${guestName.trim()} at ${outlet?.name}`;
+          ? t("order.orderSentToTable", { table: table.name, outlet: outlet?.name ?? "" })
+          : t("order.orderSentToOutlet", { outlet: outlet?.name ?? "" })
+        : t("order.orderSentForGuest", { name: guestName.trim(), outlet: outlet?.name ?? "" });
 
     return (
       <div className="flex min-h-screen flex-col bg-[#f9f8f6]">
@@ -189,25 +200,25 @@ export function CustomerMenu({
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
               <CheckCircleIcon className="h-8 w-8" />
             </span>
-            <p className="mt-4 text-lg font-bold text-gray-900">Order Placed!</p>
+            <p className="mt-4 text-lg font-bold text-gray-900">{t("order.orderPlaced")}</p>
             <p className="mt-1 text-sm text-gray-500">
-              Your order{" "}
-              <span className="font-semibold text-gray-800">{confirmedOrderNo}</span> has been
-              sent {whoText}. Please pay at the counter when your order arrives.
+              {t("order.yourOrderPrefix")}{" "}
+              <span className="font-semibold text-gray-800">{confirmedOrderNo}</span>{" "}
+              {t("order.hasBeenSentSuffix", { who: whoText })}
             </p>
             <div className="mt-6 space-y-2.5">
               <Link
                 href={`/order/track/${confirmedOrderNo}`}
                 className="block w-full rounded-xl bg-amber-700 py-3 text-sm font-semibold text-white hover:bg-amber-800"
               >
-                Track Order Status
+                {t("order.trackOrderStatus")}
               </Link>
               <button
                 type="button"
                 onClick={() => setConfirmedOrderNo(null)}
                 className="block w-full rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                Order More
+                {t("order.orderMore")}
               </button>
             </div>
           </div>
@@ -239,7 +250,7 @@ export function CustomerMenu({
             onSearchChange={setSearch}
           />
 
-          <ProductGrid title="All Menu" items={filtered} onAdd={addToCart} />
+          <ProductGrid title={t("order.allMenu")} items={filtered} onAdd={addToCart} />
 
           <OrderCartPanel
             orderType={orderType}
@@ -266,7 +277,7 @@ export function CustomerMenu({
 
       {showOutletModal && (
         <SelectModal
-          title="Select Outlet"
+          title={t("order.selectOutlet")}
           options={outlets.map((o) => ({ id: o.id, label: o.name, sublabel: o.address ?? undefined }))}
           onSelect={selectOutlet}
           onClose={() => setShowOutletModal(false)}
@@ -275,12 +286,15 @@ export function CustomerMenu({
 
       {showTableModal && (
         <SelectModal
-          title="Select Your Table"
-          options={tables.map((t) => ({
-            id: t.id,
-            label: t.name,
-            sublabel: t.status !== "AVAILABLE" ? t.status : undefined,
-            disabled: t.status === "INACTIVE",
+          title={t("order.selectYourTable")}
+          options={tables.map((tbl) => ({
+            id: tbl.id,
+            label: tbl.name,
+            sublabel:
+              tbl.status !== "AVAILABLE"
+                ? t(TABLE_STATUS_KEYS[tbl.status] ?? "pos.tableStatusInactive")
+                : undefined,
+            disabled: tbl.status === "INACTIVE",
           }))}
           onSelect={selectTable}
           onClose={() => setShowTableModal(false)}

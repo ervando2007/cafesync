@@ -8,13 +8,17 @@ import { ProductImageUploader } from "@/app/ui/master-data/product-image-uploade
 import { createProduct, updateProduct } from "@/app/master-data/actions";
 import type { ProductCategoryOption, ProductRecord } from "@/lib/products";
 import type { UnitOption } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
-const PRODUCT_TYPES = [
-  { value: "BEVERAGE", label: "Beverage" },
-  { value: "FOOD", label: "Food" },
-  { value: "MERCHANDISE", label: "Merchandise" },
-  { value: "SERVICE", label: "Service" },
-];
+function productTypes(t: TranslateFn): { value: string; label: string }[] {
+  return [
+    { value: "BEVERAGE", label: t("masterData.typeBeverage") },
+    { value: "FOOD", label: t("masterData.typeFood") },
+    { value: "MERCHANDISE", label: t("masterData.typeMerchandise") },
+    { value: "SERVICE", label: t("masterData.typeService") },
+  ];
+}
 
 export function ProductFormModal({
   mode,
@@ -30,6 +34,8 @@ export function ProductFormModal({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
+  const PRODUCT_TYPES = productTypes(t);
   const [sku, setSku] = useState(product?.sku ?? "");
   const [name, setName] = useState(product?.name ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
@@ -67,7 +73,7 @@ export function ProductFormModal({
           : await updateProduct({ ...input, id: product!.id });
 
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       router.refresh();
@@ -80,13 +86,13 @@ export function ProductFormModal({
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">
-            {mode === "create" ? "Add Product" : "Edit Product"}
+            {mode === "create" ? t("masterData.addProduct") : t("masterData.editProductTitle")}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -103,7 +109,7 @@ export function ProductFormModal({
             <ProductImageUploader productId={product.id} imageUrl={product.imageUrl} />
           ) : (
             <p className="rounded-lg bg-gray-50 px-3 py-2.5 text-xs text-gray-400">
-              Save the product first, then edit it to upload an image.
+              {t("masterData.saveProductFirstHint")}
             </p>
           )}
 
@@ -113,20 +119,20 @@ export function ProductFormModal({
               <input
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
-                placeholder="e.g. BEV-CAP-001"
+                placeholder={t("masterData.productSkuPlaceholder")}
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500">Type</label>
+              <label className="text-xs text-gray-500">{t("masterData.colType")}</label>
               <select
                 value={productType}
                 onChange={(e) => setProductType(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
               >
-                {PRODUCT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {PRODUCT_TYPES.map((pt) => (
+                  <option key={pt.value} value={pt.value}>
+                    {pt.label}
                   </option>
                 ))}
               </select>
@@ -134,22 +140,22 @@ export function ProductFormModal({
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">Product Name</label>
+            <label className="text-xs text-gray-500">{t("masterData.productName")}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Cappuccino"
+              placeholder={t("masterData.productNamePlaceholder")}
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">Description</label>
+            <label className="text-xs text-gray-500">{t("masterData.description")}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="e.g. Espresso with foamed milk"
+              placeholder={t("masterData.descriptionPlaceholder")}
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
             />
           </div>
@@ -157,13 +163,13 @@ export function ProductFormModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between">
-                <label className="text-xs text-gray-500">Category</label>
+                <label className="text-xs text-gray-500">{t("inventory.category")}</label>
                 <button
                   type="button"
                   onClick={() => setShowCategoryManager(true)}
                   className="text-xs font-medium text-amber-700 hover:text-amber-800"
                 >
-                  Manage
+                  {t("common.manage")}
                 </button>
               </div>
               <select
@@ -171,7 +177,7 @@ export function ProductFormModal({
                 onChange={(e) => setCategoryId(Number(e.target.value))}
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
               >
-                <option value={0}>No category</option>
+                <option value={0}>{t("masterData.noCategory")}</option>
                 {selectableCategories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -180,7 +186,7 @@ export function ProductFormModal({
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500">Base Unit</label>
+              <label className="text-xs text-gray-500">{t("masterData.baseUnit")}</label>
               <select
                 value={baseUnitId}
                 onChange={(e) => setBaseUnitId(Number(e.target.value))}
@@ -202,7 +208,7 @@ export function ProductFormModal({
             onClick={onClose}
             className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -210,7 +216,7 @@ export function ProductFormModal({
             disabled={isPending}
             className="rounded-xl bg-amber-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isPending ? "Saving..." : "Save Product"}
+            {isPending ? t("common.saving") : t("masterData.saveProduct")}
           </button>
         </div>
       </div>

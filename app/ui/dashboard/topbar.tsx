@@ -1,14 +1,17 @@
 import { ChevronDownIcon } from "@/app/ui/icons";
 import { BellIcon, CalendarIcon, StoreIcon } from "@/app/ui/dashboard/icons";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 export function DashboardTopbar({
   title,
   subtitle,
   notificationCount = 0,
+  t,
 }: {
   title: string;
   subtitle: string;
   notificationCount?: number;
+  t: TranslateFn;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 bg-white px-6 py-5 sm:px-8">
@@ -23,7 +26,7 @@ export function DashboardTopbar({
           className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
         >
           <StoreIcon className="h-4 w-4 text-gray-400" />
-          All Outlets
+          {t("dashboard.allOutlets")}
           <ChevronDownIcon className="h-4 w-4 text-gray-400" />
         </button>
 

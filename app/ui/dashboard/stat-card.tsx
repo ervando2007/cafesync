@@ -8,6 +8,7 @@ const ACCENT_CLASSES: Record<StatCardData["accent"], string> = {
   violet: "bg-violet-50 text-violet-600",
   orange: "bg-orange-50 text-orange-600",
   pink: "bg-pink-50 text-pink-600",
+  teal: "bg-teal-50 text-teal-600",
 };
 
 export function StatCard({

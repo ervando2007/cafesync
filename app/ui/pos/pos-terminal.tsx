@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useI18n } from "@/app/i18n-provider";
 import { PosHeader } from "@/app/ui/pos/header";
 import { ProductGrid } from "@/app/ui/pos/product-grid";
 import { CartPanel } from "@/app/ui/pos/cart-panel";
@@ -48,6 +49,7 @@ export function PosTerminal({
   userName: string;
   userRole: string;
 }) {
+  const { t } = useI18n();
   const [data, setData] = useState(outletData);
   const [outletId, setOutletId] = useState<number>(outlets[0]?.id ?? 0);
   const [orderType, setOrderType] = useState<OrderChannel>("DINE_IN_STAFF");
@@ -140,15 +142,15 @@ export function PosTerminal({
 
   function doSubmit(mode: "hold" | "pay", clearAfter: boolean) {
     if (cart.length === 0) {
-      flash("error", "Add at least one item first.");
+      flash("error", t("pos.addAtLeastOneItem"));
       return;
     }
     if (mode === "pay" && !paymentMethod) {
-      flash("error", "Select a payment method.");
+      flash("error", t("pos.selectPaymentMethod"));
       return;
     }
     if (orderType === "DINE_IN_STAFF" && !tableId) {
-      flash("error", "Select a table for dine-in orders.");
+      flash("error", t("pos.selectTableForDineIn"));
       return;
     }
 
@@ -175,11 +177,11 @@ export function PosTerminal({
         setReceipt(result.order);
         resetOrderState();
       } else if (clearAfter) {
-        flash("info", `Order held as ${result.order.orderNo}.`);
+        flash("info", t("pos.orderHeldAs", { orderNo: result.order.orderNo }));
         resetOrderState();
       } else {
         setHoldOrderId(result.order.id);
-        flash("info", `Saved as ${result.order.orderNo}.`);
+        flash("info", t("pos.savedAs", { orderNo: result.order.orderNo }));
       }
     });
   }
@@ -188,7 +190,7 @@ export function PosTerminal({
     startTransition(async () => {
       const order = await loadHeldOrder(orderId);
       if (!order) {
-        flash("error", "Could not load that order.");
+        flash("error", t("pos.couldNotLoadOrder"));
         return;
       }
       const lines: CartLine[] = order.items.map((item) => {
@@ -212,7 +214,9 @@ export function PosTerminal({
       setPaymentMethod(null);
       flash(
         "info",
-        order.guestName ? `Resumed ${order.orderNo} — ${order.guestName}.` : `Resumed ${order.orderNo}.`,
+        order.guestName
+          ? t("pos.resumedWithGuest", { orderNo: order.orderNo, guestName: order.guestName })
+          : t("pos.resumed", { orderNo: order.orderNo }),
       );
     });
   }
@@ -221,7 +225,7 @@ export function PosTerminal({
     startTransition(async () => {
       const result = await cancelHeldOrder(orderId, outletId);
       if (!result.ok) {
-        flash("error", "Could not cancel that order.");
+        flash("error", t("pos.couldNotCancelOrder"));
         return;
       }
       if (holdOrderId === orderId) resetOrderState();
@@ -231,11 +235,11 @@ export function PosTerminal({
 
   const orderLabel = holdOrderId
     ? guestName
-      ? `Editing order — ${guestName}`
-      : "Editing held order"
+      ? t("pos.editingOrderGuest", { guestName })
+      : t("pos.editingHeldOrder")
     : cart.length > 0
-      ? "New Order"
-      : "No active order";
+      ? t("pos.newOrder")
+      : t("pos.noActiveOrder");
 
   return (
     <>

@@ -4,6 +4,22 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setRoleMenuPermission } from "@/app/settings/actions";
 import type { MenuItemRecord, PermissionPair, RoleRecord } from "@/lib/menu-permissions";
+import { useI18n } from "@/app/i18n-provider";
+import type { TranslateFn } from "@/lib/i18n/translate";
+
+const MENU_KEY_TO_NAV_KEY: Record<string, "nav.dashboard" | "nav.pos" | "nav.inventory" | "nav.masterData" | "nav.accounting" | "nav.settings"> = {
+  dashboard: "nav.dashboard",
+  pos: "nav.pos",
+  inventory: "nav.inventory",
+  master_data: "nav.masterData",
+  accounting: "nav.accounting",
+  settings: "nav.settings",
+};
+
+function menuLabel(m: MenuItemRecord, t: TranslateFn): string {
+  const navKey = MENU_KEY_TO_NAV_KEY[m.menuKey];
+  return navKey ? t(navKey) : m.label;
+}
 
 export function PermissionMatrix({
   roles,
@@ -15,6 +31,7 @@ export function PermissionMatrix({
   permissions: PermissionPair[];
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [isPending, startTransition] = useTransition();
   const [pendingCell, setPendingCell] = useState<string | null>(null);
 
@@ -35,22 +52,18 @@ export function PermissionMatrix({
   return (
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
       <div className="border-b border-gray-100 p-5">
-        <h2 className="text-base font-semibold text-gray-900">Role → Menu Access</h2>
-        <p className="mt-0.5 text-xs text-gray-400">
-          Controls which sidebar menus each role sees. This does not change page-level access
-          rules — a role denied here that still has a direct link would still be blocked by the
-          page itself.
-        </p>
+        <h2 className="text-base font-semibold text-gray-900">{t("settings.roleMenuAccess")}</h2>
+        <p className="mt-0.5 text-xs text-gray-400">{t("settings.roleMenuAccessDesc")}</p>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-              <th className="px-5 py-3 font-medium">Role</th>
+              <th className="px-5 py-3 font-medium">{t("settings.colRole")}</th>
               {menuItems.map((m) => (
                 <th key={m.id} className="px-5 py-3 text-center font-medium">
-                  {m.label}
+                  {menuLabel(m, t)}
                 </th>
               ))}
             </tr>

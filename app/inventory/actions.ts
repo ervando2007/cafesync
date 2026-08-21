@@ -4,6 +4,8 @@ import type { RowDataPacket } from "mysql2";
 import type { PoolConnection } from "mysql2/promise";
 import pool from "@/lib/db";
 import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
+import { getT } from "@/lib/i18n/server";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER"];
 
@@ -97,10 +99,11 @@ export async function stockIn(input: {
   items: StockInLine[];
 }): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("inventory.errNoOutletAccess") };
   }
-  if (!input.items.length) return { ok: false, message: "Add at least one item." };
+  if (!input.items.length) return { ok: false, message: t("inventory.addAtLeastOneItemPeriod") };
 
   const conn = await pool.getConnection();
   try {
@@ -111,7 +114,7 @@ export async function stockIn(input: {
     for (const line of input.items) {
       if (!valid.has(line.stockItemId) || line.qty <= 0 || line.unitCost < 0) {
         await conn.rollback();
-        return { ok: false, message: "One or more items are invalid." };
+        return { ok: false, message: t("inventory.errItemsInvalid") };
       }
 
       const existing = await getOrLockStock(conn, input.outletId, line.stockItemId);
@@ -137,7 +140,7 @@ export async function stockIn(input: {
   } catch (error) {
     await conn.rollback();
     console.error("stockIn failed", error);
-    return { ok: false, message: "Could not save stock in. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveStockIn") };
   } finally {
     conn.release();
   }
@@ -157,10 +160,11 @@ export async function stockOut(input: {
   items: StockOutLine[];
 }): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("inventory.errNoOutletAccess") };
   }
-  if (!input.items.length) return { ok: false, message: "Add at least one item." };
+  if (!input.items.length) return { ok: false, message: t("inventory.addAtLeastOneItemPeriod") };
 
   const conn = await pool.getConnection();
   try {
@@ -171,14 +175,14 @@ export async function stockOut(input: {
     for (const line of input.items) {
       if (!valid.has(line.stockItemId) || line.qty <= 0) {
         await conn.rollback();
-        return { ok: false, message: "One or more items are invalid." };
+        return { ok: false, message: t("inventory.errItemsInvalid") };
       }
 
       const existing = await getOrLockStock(conn, input.outletId, line.stockItemId);
       const oldQty = existing?.qtyOnHand ?? 0;
       if (line.qty > oldQty) {
         await conn.rollback();
-        return { ok: false, message: "Not enough stock for one or more items." };
+        return { ok: false, message: t("inventory.errNotEnoughStock") };
       }
 
       const avg = existing?.avgCost ?? 0;
@@ -199,7 +203,7 @@ export async function stockOut(input: {
   } catch (error) {
     await conn.rollback();
     console.error("stockOut failed", error);
-    return { ok: false, message: "Could not save stock out. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveStockOut") };
   } finally {
     conn.release();
   }
@@ -219,10 +223,11 @@ export async function adjustment(input: {
   items: AdjustmentLine[];
 }): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("inventory.errNoOutletAccess") };
   }
-  if (!input.items.length) return { ok: false, message: "Add at least one item." };
+  if (!input.items.length) return { ok: false, message: t("inventory.addAtLeastOneItemPeriod") };
 
   const conn = await pool.getConnection();
   try {
@@ -233,7 +238,7 @@ export async function adjustment(input: {
     for (const line of input.items) {
       if (!valid.has(line.stockItemId) || line.actualQty < 0) {
         await conn.rollback();
-        return { ok: false, message: "One or more items are invalid." };
+        return { ok: false, message: t("inventory.errItemsInvalid") };
       }
 
       const existing = await getOrLockStock(conn, input.outletId, line.stockItemId);
@@ -277,7 +282,7 @@ export async function adjustment(input: {
   } catch (error) {
     await conn.rollback();
     console.error("adjustment failed", error);
-    return { ok: false, message: "Could not save adjustment. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveAdjustment") };
   } finally {
     conn.release();
   }
@@ -296,16 +301,17 @@ export async function transfer(input: {
   items: TransferLine[];
 }): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.fromOutletId === input.toOutletId) {
-    return { ok: false, message: "Source and destination outlet must be different." };
+    return { ok: false, message: t("inventory.sourceDestDifferent") };
   }
   if (
     !(await hasOutletAccess(session, input.fromOutletId)) ||
     !(await hasOutletAccess(session, input.toOutletId))
   ) {
-    return { ok: false, message: "You do not have access to one of these outlets." };
+    return { ok: false, message: t("inventory.errNoAccessOneOfOutlets") };
   }
-  if (!input.items.length) return { ok: false, message: "Add at least one item." };
+  if (!input.items.length) return { ok: false, message: t("inventory.addAtLeastOneItemPeriod") };
 
   const conn = await pool.getConnection();
   try {
@@ -316,14 +322,14 @@ export async function transfer(input: {
     for (const line of input.items) {
       if (!valid.has(line.stockItemId) || line.qty <= 0) {
         await conn.rollback();
-        return { ok: false, message: "One or more items are invalid." };
+        return { ok: false, message: t("inventory.errItemsInvalid") };
       }
 
       const source = await getOrLockStock(conn, input.fromOutletId, line.stockItemId);
       const sourceQty = source?.qtyOnHand ?? 0;
       if (line.qty > sourceQty) {
         await conn.rollback();
-        return { ok: false, message: "Not enough stock at the source outlet." };
+        return { ok: false, message: t("inventory.errNotEnoughStockSource") };
       }
       const sourceAvg = source?.avgCost ?? 0;
 
@@ -362,7 +368,7 @@ export async function transfer(input: {
   } catch (error) {
     await conn.rollback();
     console.error("transfer failed", error);
-    return { ok: false, message: "Could not save transfer. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveTransfer") };
   } finally {
     conn.release();
   }
@@ -378,15 +384,15 @@ interface StockItemInput {
   reorderLevel: number;
 }
 
-function validateStockItemInput(input: StockItemInput): string | null {
-  if (!input.sku.trim()) return "SKU is required.";
-  if (!input.name.trim()) return "Name is required.";
+function validateStockItemInput(input: StockItemInput, t: TranslateFn): string | null {
+  if (!input.sku.trim()) return t("inventory.errSkuRequired");
+  if (!input.name.trim()) return t("inventory.errNameRequired");
   if (!Number.isFinite(input.categoryId) || input.categoryId <= 0) {
-    return "Category is required.";
+    return t("inventory.errCategoryRequired");
   }
-  if (!Number.isFinite(input.unitId) || input.unitId <= 0) return "Unit is required.";
+  if (!Number.isFinite(input.unitId) || input.unitId <= 0) return t("inventory.errUnitRequired");
   if (!Number.isFinite(input.reorderLevel) || input.reorderLevel < 0) {
-    return "Reorder level cannot be negative.";
+    return t("inventory.errReorderLevelNegative");
   }
   return null;
 }
@@ -402,7 +408,8 @@ function isDuplicateSkuError(error: unknown): boolean {
 
 export async function createStockItem(input: StockItemInput): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateStockItemInput(input);
+  const { t } = await getT();
+  const validationError = validateStockItemInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   const conn = await pool.getConnection();
@@ -410,13 +417,13 @@ export async function createStockItem(input: StockItemInput): Promise<ActionResu
     const [units] = await conn.query<RowDataPacket[]>("SELECT id FROM units WHERE id = ?", [
       input.unitId,
     ]);
-    if (!units.length) return { ok: false, message: "Unit not found." };
+    if (!units.length) return { ok: false, message: t("inventory.errUnitNotFound") };
 
     const [categories] = await conn.query<RowDataPacket[]>(
       "SELECT id FROM stock_item_categories WHERE id = ?",
       [input.categoryId],
     );
-    if (!categories.length) return { ok: false, message: "Category not found." };
+    if (!categories.length) return { ok: false, message: t("inventory.errCategoryNotFound") };
 
     await conn.query(
       `INSERT INTO stock_items (sku, name, unit_id, category_id, reorder_level, status)
@@ -426,10 +433,10 @@ export async function createStockItem(input: StockItemInput): Promise<ActionResu
     return { ok: true };
   } catch (error) {
     if (isDuplicateSkuError(error)) {
-      return { ok: false, message: "An item with this SKU already exists." };
+      return { ok: false, message: t("inventory.errSkuExists") };
     }
     console.error("createStockItem failed", error);
-    return { ok: false, message: "Could not save item. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveItem") };
   } finally {
     conn.release();
   }
@@ -439,7 +446,8 @@ export async function updateStockItem(
   input: StockItemInput & { id: number },
 ): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateStockItemInput(input);
+  const { t } = await getT();
+  const validationError = validateStockItemInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   const conn = await pool.getConnection();
@@ -447,13 +455,13 @@ export async function updateStockItem(
     const [units] = await conn.query<RowDataPacket[]>("SELECT id FROM units WHERE id = ?", [
       input.unitId,
     ]);
-    if (!units.length) return { ok: false, message: "Unit not found." };
+    if (!units.length) return { ok: false, message: t("inventory.errUnitNotFound") };
 
     const [categories] = await conn.query<RowDataPacket[]>(
       "SELECT id FROM stock_item_categories WHERE id = ?",
       [input.categoryId],
     );
-    if (!categories.length) return { ok: false, message: "Category not found." };
+    if (!categories.length) return { ok: false, message: t("inventory.errCategoryNotFound") };
 
     const [result] = await conn.query(
       `UPDATE stock_items SET sku = ?, name = ?, unit_id = ?, category_id = ?, reorder_level = ?
@@ -468,15 +476,15 @@ export async function updateStockItem(
       ],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Item not found." };
+      return { ok: false, message: t("inventory.errItemNotFound") };
     }
     return { ok: true };
   } catch (error) {
     if (isDuplicateSkuError(error)) {
-      return { ok: false, message: "An item with this SKU already exists." };
+      return { ok: false, message: t("inventory.errSkuExists") };
     }
     console.error("updateStockItem failed", error);
-    return { ok: false, message: "Could not save item. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveItem") };
   } finally {
     conn.release();
   }
@@ -487,8 +495,9 @@ export async function setStockItemStatus(input: {
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
-    return { ok: false, message: "Invalid status." };
+    return { ok: false, message: t("inventory.errInvalidStatus") };
   }
 
   try {
@@ -497,12 +506,12 @@ export async function setStockItemStatus(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Item not found." };
+      return { ok: false, message: t("inventory.errItemNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("setStockItemStatus failed", error);
-    return { ok: false, message: "Could not update item status. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotUpdateItemStatus") };
   }
 }
 
@@ -514,8 +523,9 @@ function isDuplicateCategoryError(error: unknown): boolean {
 
 export async function createCategory(input: { name: string }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   const name = input.name.trim();
-  if (!name) return { ok: false, message: "Category name is required." };
+  if (!name) return { ok: false, message: t("inventory.errCategoryNameRequired") };
 
   try {
     await pool.query(
@@ -525,17 +535,18 @@ export async function createCategory(input: { name: string }): Promise<ActionRes
     return { ok: true };
   } catch (error) {
     if (isDuplicateCategoryError(error)) {
-      return { ok: false, message: "A category with this name already exists." };
+      return { ok: false, message: t("inventory.errCategoryExists") };
     }
     console.error("createCategory failed", error);
-    return { ok: false, message: "Could not save category. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveCategory") };
   }
 }
 
 export async function updateCategory(input: { id: number; name: string }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   const name = input.name.trim();
-  if (!name) return { ok: false, message: "Category name is required." };
+  if (!name) return { ok: false, message: t("inventory.errCategoryNameRequired") };
 
   try {
     const [result] = await pool.query("UPDATE stock_item_categories SET name = ? WHERE id = ?", [
@@ -543,15 +554,15 @@ export async function updateCategory(input: { id: number; name: string }): Promi
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Category not found." };
+      return { ok: false, message: t("inventory.errCategoryNotFound") };
     }
     return { ok: true };
   } catch (error) {
     if (isDuplicateCategoryError(error)) {
-      return { ok: false, message: "A category with this name already exists." };
+      return { ok: false, message: t("inventory.errCategoryExists") };
     }
     console.error("updateCategory failed", error);
-    return { ok: false, message: "Could not save category. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveCategory") };
   }
 }
 
@@ -560,8 +571,9 @@ export async function setCategoryStatus(input: {
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
-    return { ok: false, message: "Invalid status." };
+    return { ok: false, message: t("inventory.errInvalidStatus") };
   }
 
   try {
@@ -570,12 +582,12 @@ export async function setCategoryStatus(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Category not found." };
+      return { ok: false, message: t("inventory.errCategoryNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("setCategoryStatus failed", error);
-    return { ok: false, message: "Could not update category status. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotUpdateCategoryStatus") };
   }
 }
 
@@ -587,14 +599,15 @@ interface SupplierInput {
   phone: string;
 }
 
-function validateSupplierInput(input: SupplierInput): string | null {
-  if (!input.name.trim()) return "Supplier name is required.";
+function validateSupplierInput(input: SupplierInput, t: TranslateFn): string | null {
+  if (!input.name.trim()) return t("inventory.errSupplierNameRequired");
   return null;
 }
 
 export async function createSupplier(input: SupplierInput): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateSupplierInput(input);
+  const { t } = await getT();
+  const validationError = validateSupplierInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   try {
@@ -605,7 +618,7 @@ export async function createSupplier(input: SupplierInput): Promise<ActionResult
     return { ok: true };
   } catch (error) {
     console.error("createSupplier failed", error);
-    return { ok: false, message: "Could not save supplier. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveSupplier") };
   }
 }
 
@@ -613,7 +626,8 @@ export async function updateSupplier(
   input: SupplierInput & { id: number },
 ): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
-  const validationError = validateSupplierInput(input);
+  const { t } = await getT();
+  const validationError = validateSupplierInput(input, t);
   if (validationError) return { ok: false, message: validationError };
 
   try {
@@ -627,12 +641,12 @@ export async function updateSupplier(
       ],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Supplier not found." };
+      return { ok: false, message: t("inventory.errSupplierNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("updateSupplier failed", error);
-    return { ok: false, message: "Could not save supplier. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotSaveSupplier") };
   }
 }
 
@@ -641,8 +655,9 @@ export async function setSupplierStatus(input: {
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
   await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
-    return { ok: false, message: "Invalid status." };
+    return { ok: false, message: t("inventory.errInvalidStatus") };
   }
 
   try {
@@ -651,11 +666,11 @@ export async function setSupplierStatus(input: {
       input.id,
     ]);
     if ((result as { affectedRows: number }).affectedRows === 0) {
-      return { ok: false, message: "Supplier not found." };
+      return { ok: false, message: t("inventory.errSupplierNotFound") };
     }
     return { ok: true };
   } catch (error) {
     console.error("setSupplierStatus failed", error);
-    return { ok: false, message: "Could not update supplier status. Please try again." };
+    return { ok: false, message: t("inventory.errCouldNotUpdateSupplierStatus") };
   }
 }

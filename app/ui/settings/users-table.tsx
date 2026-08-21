@@ -9,6 +9,7 @@ import { ResetPasswordModal } from "@/app/ui/settings/reset-password-modal";
 import { setUserStatus } from "@/app/settings/actions";
 import type { UserRecord, UserRoleRef } from "@/lib/users";
 import type { OutletRecord } from "@/lib/outlets";
+import { useI18n } from "@/app/i18n-provider";
 
 export function UsersTable({
   users,
@@ -22,6 +23,7 @@ export function UsersTable({
   currentUserId: number;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [modalUser, setModalUser] = useState<UserRecord | "new" | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserRecord | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -38,8 +40,8 @@ export function UsersTable({
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-gray-100 p-5">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Users</h2>
-          <p className="mt-0.5 text-xs text-gray-400">Manage staff accounts and role assignment.</p>
+          <h2 className="text-base font-semibold text-gray-900">{t("settings.usersTitle")}</h2>
+          <p className="mt-0.5 text-xs text-gray-400">{t("settings.manageStaffDesc")}</p>
         </div>
         <button
           type="button"
@@ -47,7 +49,7 @@ export function UsersTable({
           className="flex items-center gap-1.5 rounded-lg bg-amber-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-800"
         >
           <PlusIcon className="h-3.5 w-3.5" />
-          Add User
+          {t("settings.addUser")}
         </button>
       </div>
 
@@ -55,11 +57,11 @@ export function UsersTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-              <th className="px-5 py-3 font-medium">Name</th>
-              <th className="px-5 py-3 font-medium">Email</th>
-              <th className="px-5 py-3 font-medium">Roles</th>
-              <th className="px-5 py-3 font-medium">Outlets</th>
-              <th className="px-5 py-3 font-medium">Status</th>
+              <th className="px-5 py-3 font-medium">{t("settings.colName")}</th>
+              <th className="px-5 py-3 font-medium">{t("settings.colEmail")}</th>
+              <th className="px-5 py-3 font-medium">{t("settings.colRoles")}</th>
+              <th className="px-5 py-3 font-medium">{t("settings.colOutlets")}</th>
+              <th className="px-5 py-3 font-medium">{t("inventory.colStatus")}</th>
               <th className="px-5 py-3 font-medium"></th>
             </tr>
           </thead>
@@ -67,7 +69,7 @@ export function UsersTable({
             {users.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">
-                  No users yet.
+                  {t("settings.noUsersYet")}
                 </td>
               </tr>
             ) : (
@@ -81,7 +83,7 @@ export function UsersTable({
                   <td className="px-5 py-3 font-medium text-gray-900">
                     {user.name}
                     {user.id === currentUserId && (
-                      <span className="ml-1.5 text-xs font-normal text-gray-400">(you)</span>
+                      <span className="ml-1.5 text-xs font-normal text-gray-400">{t("settings.youSuffix")}</span>
                     )}
                   </td>
                   <td className="px-5 py-3 text-gray-500">{user.email}</td>
@@ -103,17 +105,17 @@ export function UsersTable({
                   </td>
                   <td className="px-5 py-3 text-gray-500">
                     {user.outlets.length === 0
-                      ? "All / N-A"
+                      ? t("settings.allNA")
                       : user.outlets.map((o) => o.name).join(", ")}
                   </td>
                   <td className="px-5 py-3">
                     {user.status === "ACTIVE" ? (
                       <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                        Active
+                        {t("common.active")}
                       </span>
                     ) : (
                       <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
-                        {user.status === "LOCKED" ? "Locked" : "Inactive"}
+                        {user.status === "LOCKED" ? t("settings.statusLocked") : t("common.inactive")}
                       </span>
                     )}
                   </td>
@@ -123,7 +125,7 @@ export function UsersTable({
                         type="button"
                         onClick={() => setModalUser(user)}
                         className="text-gray-400 hover:text-amber-700"
-                        aria-label={`Edit ${user.name}`}
+                        aria-label={t("inventory.editAriaLabel", { name: user.name })}
                       >
                         <EditIcon className="h-4 w-4" />
                       </button>
@@ -132,7 +134,7 @@ export function UsersTable({
                         onClick={() => setResetPasswordUser(user)}
                         className="text-xs font-medium text-gray-400 hover:text-gray-700"
                       >
-                        Reset Password
+                        {t("settings.resetPassword")}
                       </button>
                       <button
                         type="button"
@@ -140,7 +142,7 @@ export function UsersTable({
                         disabled={isPending || user.id === currentUserId}
                         className="text-xs font-medium text-gray-400 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        {user.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                        {user.status === "ACTIVE" ? t("common.deactivate") : t("common.activate")}
                       </button>
                     </div>
                   </td>

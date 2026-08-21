@@ -1,7 +1,12 @@
+"use client";
+
 import Link from "next/link";
-import { ChevronDownIcon, CoffeeCupIcon, GlobeIcon } from "@/app/ui/icons";
+import { CoffeeCupIcon } from "@/app/ui/icons";
+import { LanguageSwitcher } from "@/app/ui/language-switcher";
+import { useI18n } from "@/app/i18n-provider";
 
 export function OrderTopNav() {
+  const { t } = useI18n();
   return (
     <header className="border-b border-gray-100 bg-white">
       <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-6 px-6 py-4">
@@ -14,25 +19,18 @@ export function OrderTopNav() {
               Cafe<span className="text-amber-700">Sync</span>
             </p>
             <p className="text-[10px] font-medium tracking-wide text-gray-400">
-              GOOD COFFEE, GOOD DAY
+              {t("order.goodCoffeeGoodDay")}
             </p>
           </div>
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
           <Link href="/order" className="border-b-2 border-amber-700 pb-1 text-sm font-semibold text-amber-700">
-            Menu
+            {t("order.menu")}
           </Link>
         </nav>
 
-        <button
-          type="button"
-          className="hidden items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 sm:flex"
-        >
-          <GlobeIcon className="h-4 w-4" />
-          EN
-          <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-        </button>
+        <LanguageSwitcher className="hidden sm:block" />
       </div>
     </header>
   );

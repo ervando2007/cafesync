@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { removeProductImage, uploadProductImage } from "@/app/master-data/actions";
+import { useI18n } from "@/app/i18n-provider";
 
 export function ProductImageUploader({
   productId,
@@ -12,6 +13,7 @@ export function ProductImageUploader({
   imageUrl: string | null;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export function ProductImageUploader({
     startTransition(async () => {
       const result = await uploadProductImage(productId, formData);
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         setPreview(null);
         return;
       }
@@ -44,7 +46,7 @@ export function ProductImageUploader({
     startTransition(async () => {
       const result = await removeProductImage(productId);
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       setPreview(null);
@@ -56,14 +58,14 @@ export function ProductImageUploader({
 
   return (
     <div>
-      <label className="text-xs text-gray-500">Product Image</label>
+      <label className="text-xs text-gray-500">{t("masterData.productImage")}</label>
       <div className="mt-1.5 flex items-center gap-4">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
           {displayUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- local blob: preview URLs can't go through next/image's optimizer
             <img src={displayUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="text-xs text-gray-300">No image</span>
+            <span className="text-xs text-gray-300">{t("masterData.noImage")}</span>
           )}
         </div>
         <div className="flex flex-col gap-2">
@@ -74,7 +76,7 @@ export function ProductImageUploader({
               disabled={isPending}
               className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-              {isPending ? "Uploading..." : displayUrl ? "Replace" : "Upload"}
+              {isPending ? t("masterData.uploading") : displayUrl ? t("masterData.replace") : t("masterData.upload")}
             </button>
             {displayUrl && (
               <button
@@ -83,11 +85,11 @@ export function ProductImageUploader({
                 disabled={isPending}
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
               >
-                Remove
+                {t("common.remove")}
               </button>
             )}
           </div>
-          <p className="text-[11px] text-gray-400">JPEG, PNG, or WebP. Max 4MB.</p>
+          <p className="text-[11px] text-gray-400">{t("masterData.imageHint")}</p>
           {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
         <input

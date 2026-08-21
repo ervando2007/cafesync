@@ -3,6 +3,7 @@ import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
 import { getStockItems } from "@/lib/inventory";
 import { getCashFlowReport } from "@/lib/accounting";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 function formatRp(value: number): string {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -37,19 +38,25 @@ export interface StatCard {
   deltaLabel: string;
   deltaDirection: "up" | "down";
   isGood: boolean;
-  accent: "green" | "blue" | "violet" | "orange" | "pink";
+  accent: "green" | "blue" | "violet" | "orange" | "pink" | "teal";
 }
 
 interface WeekAggregate {
-  totalSales: number;
+  netSales: number;
   orderCount: number;
   totalHpp: number;
+  cashIn: number;
 }
 
+// PRD's "Net Sales" excludes tax (a pass-through liability, not revenue) — subtotal
+// minus discount, not the tax-inclusive grand_total. "Cash In" is read from the
+// same journal_lines ledger the Cash Flow report uses, so both numbers always agree.
 async function getWeekAggregate(outletIds: number[], from: string, to: string): Promise<WeekAggregate> {
-  if (!outletIds.length) return { totalSales: 0, orderCount: 0, totalHpp: 0 };
-  const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT COALESCE(SUM(o.grand_total), 0) AS totalSales, COUNT(DISTINCT o.id) AS orderCount,
+  if (!outletIds.length) return { netSales: 0, orderCount: 0, totalHpp: 0, cashIn: 0 };
+
+  const [salesRows] = await pool.query<RowDataPacket[]>(
+    `SELECT COALESCE(SUM(o.subtotal - o.discount_total), 0) AS netSales,
+            COUNT(DISTINCT o.id) AS orderCount,
             COALESCE(SUM(oi.hpp_total), 0) AS totalHpp
      FROM orders o
      LEFT JOIN order_items oi ON oi.order_id = o.id
@@ -57,26 +64,39 @@ async function getWeekAggregate(outletIds: number[], from: string, to: string): 
        AND o.ordered_at BETWEEN ? AND ?`,
     [...outletIds, from, to],
   );
-  const r = rows[0];
+  const [cashRows] = await pool.query<RowDataPacket[]>(
+    `SELECT COALESCE(SUM(jl.debit), 0) AS cashIn
+     FROM journal_lines jl
+     JOIN journal_entries je ON je.id = jl.journal_entry_id
+     JOIN accounts a ON a.id = jl.account_id
+     WHERE je.outlet_id IN (${outletFilter(outletIds)}) AND je.status = 'POSTED'
+       AND a.is_cash_bank = 1 AND je.entry_date BETWEEN ? AND ?`,
+    [...outletIds, from.slice(0, 10), to.slice(0, 10)],
+  );
+
+  const r = salesRows[0];
   return {
-    totalSales: Number(r.totalSales),
+    netSales: Number(r.netSales),
     orderCount: Number(r.orderCount),
     totalHpp: Number(r.totalHpp),
+    cashIn: Number(cashRows[0].cashIn),
   };
 }
 
-function pctDelta(current: number, previous: number): { label: string; direction: "up" | "down" } {
+function pctDelta(current: number, previous: number, t: TranslateFn): { label: string; direction: "up" | "down" } {
   if (previous === 0) {
-    return current === 0 ? { label: "0% vs last week", direction: "up" } : { label: "New vs last week", direction: "up" };
+    return current === 0
+      ? { label: t("dashboard.vsLastWeek", { pct: "0" }), direction: "up" }
+      : { label: t("dashboard.newVsLastWeek"), direction: "up" };
   }
   const pct = ((current - previous) / previous) * 100;
   return {
-    label: `${Math.abs(pct).toFixed(1)}% vs last week`,
+    label: t("dashboard.vsLastWeek", { pct: Math.abs(pct).toFixed(1) }),
     direction: pct >= 0 ? "up" : "down",
   };
 }
 
-export async function getStatCards(outletIds: number[]): Promise<StatCard[]> {
+export async function getStatCards(outletIds: number[], t: TranslateFn): Promise<StatCard[]> {
   const now = new Date();
   const thisWeekStart = mondayOf(now);
   const lastWeekStart = addDays(thisWeekStart, -7);
@@ -90,30 +110,32 @@ export async function getStatCards(outletIds: number[]): Promise<StatCard[]> {
     ),
   ]);
 
-  const avgThis = thisWeek.orderCount > 0 ? thisWeek.totalSales / thisWeek.orderCount : 0;
-  const avgLast = lastWeek.orderCount > 0 ? lastWeek.totalSales / lastWeek.orderCount : 0;
-  const grossProfitThis = thisWeek.totalSales - thisWeek.totalHpp;
-  const grossProfitLast = lastWeek.totalSales - lastWeek.totalHpp;
-  const marginThis = thisWeek.totalSales > 0 ? (grossProfitThis / thisWeek.totalSales) * 100 : 0;
-  const marginLast = lastWeek.totalSales > 0 ? (grossProfitLast / lastWeek.totalSales) * 100 : 0;
+  const avgThis = thisWeek.orderCount > 0 ? thisWeek.netSales / thisWeek.orderCount : 0;
+  const avgLast = lastWeek.orderCount > 0 ? lastWeek.netSales / lastWeek.orderCount : 0;
+  const grossProfitThis = thisWeek.netSales - thisWeek.totalHpp;
+  const grossProfitLast = lastWeek.netSales - lastWeek.totalHpp;
 
-  const salesDelta = pctDelta(thisWeek.totalSales, lastWeek.totalSales);
-  const ordersDelta = pctDelta(thisWeek.orderCount, lastWeek.orderCount);
-  const avgDelta = pctDelta(avgThis, avgLast);
-  const profitDelta = pctDelta(grossProfitThis, grossProfitLast);
-  const marginDelta = pctDelta(marginThis, marginLast);
+  const salesDelta = pctDelta(thisWeek.netSales, lastWeek.netSales, t);
+  const ordersDelta = pctDelta(thisWeek.orderCount, lastWeek.orderCount, t);
+  const avgDelta = pctDelta(avgThis, avgLast, t);
+  const hppDelta = pctDelta(thisWeek.totalHpp, lastWeek.totalHpp, t);
+  const profitDelta = pctDelta(grossProfitThis, grossProfitLast, t);
+  const cashInDelta = pctDelta(thisWeek.cashIn, lastWeek.cashIn, t);
 
+  // Exactly the PRD's Dashboard KPI list: Net Sales, Orders, Average Ticket,
+  // HPP/COGS, Gross Profit, Cash In. Top Products and Outlet Ranking are the
+  // two remaining PRD KPIs — those are the panels below, not stat cards.
   return [
     {
-      label: "Total Sales",
-      value: formatRp(thisWeek.totalSales),
+      label: t("dashboard.netSales"),
+      value: formatRp(thisWeek.netSales),
       deltaLabel: salesDelta.label,
       deltaDirection: salesDelta.direction,
       isGood: salesDelta.direction === "up",
       accent: "green",
     },
     {
-      label: "Transactions",
+      label: t("dashboard.orders"),
       value: String(thisWeek.orderCount),
       deltaLabel: ordersDelta.label,
       deltaDirection: ordersDelta.direction,
@@ -121,7 +143,7 @@ export async function getStatCards(outletIds: number[]): Promise<StatCard[]> {
       accent: "blue",
     },
     {
-      label: "Average Order Value",
+      label: t("dashboard.averageTicket"),
       value: formatRp(avgThis),
       deltaLabel: avgDelta.label,
       deltaDirection: avgDelta.direction,
@@ -129,7 +151,17 @@ export async function getStatCards(outletIds: number[]): Promise<StatCard[]> {
       accent: "violet",
     },
     {
-      label: "Gross Profit",
+      label: t("dashboard.hppCogs"),
+      value: formatRp(thisWeek.totalHpp),
+      deltaLabel: hppDelta.label,
+      // Rising COGS is not "good" the way rising sales is — a bigger cost base
+      // gets the neutral/red framing regardless of direction.
+      deltaDirection: hppDelta.direction,
+      isGood: hppDelta.direction === "down",
+      accent: "pink",
+    },
+    {
+      label: t("dashboard.grossProfit"),
       value: formatRp(grossProfitThis),
       deltaLabel: profitDelta.label,
       deltaDirection: profitDelta.direction,
@@ -137,12 +169,12 @@ export async function getStatCards(outletIds: number[]): Promise<StatCard[]> {
       accent: "orange",
     },
     {
-      label: "Gross Profit Margin",
-      value: `${marginThis.toFixed(1)}%`,
-      deltaLabel: marginDelta.label,
-      deltaDirection: marginDelta.direction,
-      isGood: marginDelta.direction === "up",
-      accent: "pink",
+      label: t("dashboard.cashIn"),
+      value: formatRp(thisWeek.cashIn),
+      deltaLabel: cashInDelta.label,
+      deltaDirection: cashInDelta.direction,
+      isGood: cashInDelta.direction === "up",
+      accent: "teal",
     },
   ];
 }
@@ -153,9 +185,20 @@ export interface SalesPoint {
   lastWeek: number;
 }
 
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function weekdayLabels(t: TranslateFn): string[] {
+  return [
+    t("dashboard.weekdayMon"),
+    t("dashboard.weekdayTue"),
+    t("dashboard.weekdayWed"),
+    t("dashboard.weekdayThu"),
+    t("dashboard.weekdayFri"),
+    t("dashboard.weekdaySat"),
+    t("dashboard.weekdaySun"),
+  ];
+}
 
-export async function getSalesOverview(outletIds: number[]): Promise<SalesPoint[]> {
+export async function getSalesOverview(outletIds: number[], t: TranslateFn): Promise<SalesPoint[]> {
+  const WEEKDAY_LABELS = weekdayLabels(t);
   if (!outletIds.length) {
     return WEEKDAY_LABELS.map((day) => ({ day, thisWeek: 0, lastWeek: 0 }));
   }
@@ -193,13 +236,14 @@ export interface CategorySlice {
 
 const CATEGORY_COLORS = ["#9a4b12", "#eb6834", "#1baf7a", "#4a3aa7", "#2a78d6"];
 
-export async function getSalesByCategory(outletIds: number[]): Promise<CategorySlice[]> {
+export async function getSalesByCategory(outletIds: number[], t: TranslateFn): Promise<CategorySlice[]> {
   if (!outletIds.length) return [];
   const now = new Date();
   const thisWeekStart = mondayOf(now);
+  const othersLabel = t("dashboard.othersCategory");
 
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT COALESCE(c.name, 'Others') AS categoryName, SUM(oi.line_total) AS total
+    `SELECT COALESCE(c.name, ?) AS categoryName, SUM(oi.line_total) AS total
      FROM order_items oi
      JOIN orders o ON o.id = oi.order_id
      JOIN products p ON p.id = oi.product_id
@@ -208,7 +252,7 @@ export async function getSalesByCategory(outletIds: number[]): Promise<CategoryS
        AND o.ordered_at BETWEEN ? AND ?
      GROUP BY categoryName
      ORDER BY total DESC`,
-    [...outletIds, `${toSqlDate(thisWeekStart)} 00:00:00`, `${toSqlDate(now)} 23:59:59`],
+    [othersLabel, ...outletIds, `${toSqlDate(thisWeekStart)} 00:00:00`, `${toSqlDate(now)} 23:59:59`],
   );
 
   const grandTotal = rows.reduce((sum, r) => sum + Number(r.total), 0);
@@ -224,7 +268,7 @@ export async function getSalesByCategory(outletIds: number[]): Promise<CategoryS
   if (rest.length) {
     const restTotal = rest.reduce((sum, r) => sum + Number(r.total), 0);
     slices.push({
-      name: "Others",
+      name: othersLabel,
       percent: Math.round((restTotal / grandTotal) * 1000) / 10,
       color: CATEGORY_COLORS[4],
     });
@@ -232,7 +276,7 @@ export async function getSalesByCategory(outletIds: number[]): Promise<CategoryS
   return slices;
 }
 
-export async function getTotalSalesLabel(outletIds: number[]): Promise<string> {
+export async function getNetSalesLabel(outletIds: number[]): Promise<string> {
   const now = new Date();
   const thisWeekStart = mondayOf(now);
   const aggregate = await getWeekAggregate(
@@ -240,7 +284,7 @@ export async function getTotalSalesLabel(outletIds: number[]): Promise<string> {
     `${toSqlDate(thisWeekStart)} 00:00:00`,
     `${toSqlDate(now)} 23:59:59`,
   );
-  return formatRp(aggregate.totalSales);
+  return formatRp(aggregate.netSales);
 }
 
 export interface TopProduct {
@@ -250,7 +294,7 @@ export interface TopProduct {
   revenue: string;
 }
 
-export async function getTopProducts(outletIds: number[]): Promise<TopProduct[]> {
+export async function getTopProducts(outletIds: number[], t: TranslateFn): Promise<TopProduct[]> {
   if (!outletIds.length) return [];
   const now = new Date();
   const thisWeekStart = mondayOf(now);
@@ -272,7 +316,7 @@ export async function getTopProducts(outletIds: number[]): Promise<TopProduct[]>
   return rows.map((r, i) => ({
     rank: i + 1,
     name: String(r.name),
-    qtyLabel: `${Number(r.totalQty)} ${r.unitName ?? "sold"}`,
+    qtyLabel: `${Number(r.totalQty)} ${r.unitName ?? t("dashboard.soldFallback")}`,
     revenue: formatRp(Number(r.totalRevenue)),
   }));
 }
@@ -289,7 +333,7 @@ export async function getSalesByOutlet(outletIds: number[]): Promise<OutletSales
   const thisWeekStart = mondayOf(now);
 
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT o.name, SUM(ord.grand_total) AS total
+    `SELECT o.name, SUM(ord.subtotal - ord.discount_total) AS total
      FROM orders ord
      JOIN outlets o ON o.id = ord.outlet_id
      WHERE ord.outlet_id IN (${outletFilter(outletIds)}) AND ord.status = 'PAID'
@@ -299,13 +343,13 @@ export async function getSalesByOutlet(outletIds: number[]): Promise<OutletSales
     [...outletIds, `${toSqlDate(thisWeekStart)} 00:00:00`, `${toSqlDate(now)} 23:59:59`],
   );
 
-  const grandTotal = rows.reduce((sum, r) => sum + Number(r.total), 0);
-  if (grandTotal === 0) return [];
+  const totalAcrossOutlets = rows.reduce((sum, r) => sum + Number(r.total), 0);
+  if (totalAcrossOutlets === 0) return [];
 
   return rows.map((r) => ({
     name: String(r.name),
     amount: formatRp(Number(r.total)),
-    percent: Math.round((Number(r.total) / grandTotal) * 1000) / 10,
+    percent: Math.round((Number(r.total) / totalAcrossOutlets) * 1000) / 10,
   }));
 }
 
@@ -318,7 +362,7 @@ export interface RecentOrder {
   time: string;
 }
 
-export async function getRecentOrders(outletIds: number[]): Promise<RecentOrder[]> {
+export async function getRecentOrders(outletIds: number[], t: TranslateFn): Promise<RecentOrder[]> {
   if (!outletIds.length) return [];
 
   const [rows] = await pool.query<RowDataPacket[]>(
@@ -336,11 +380,11 @@ export async function getRecentOrders(outletIds: number[]): Promise<RecentOrder[
     const isDineIn = r.channel === "DINE_IN_STAFF" || r.channel === "DINE_IN_QR";
     const channelLabel = isDineIn
       ? r.tableCode
-        ? `Table ${r.tableCode} · Dine In`
-        : "Dine In"
+        ? t("dashboard.channelDineInTable", { code: r.tableCode })
+        : t("dashboard.channelDineIn")
       : r.channel === "DELIVERY"
-        ? "Delivery"
-        : "Take Away";
+        ? t("dashboard.channelDelivery")
+        : t("dashboard.channelTakeaway");
     const orderedAt = new Date(r.ordered_at);
     return {
       id: String(r.order_no),
@@ -372,7 +416,7 @@ function iconForUnit(unitName: string): StockAlertItem["icon"] {
   return "cup";
 }
 
-export async function getStockAlerts(outletIds: number[]): Promise<StockAlertItem[]> {
+export async function getStockAlerts(outletIds: number[], t: TranslateFn): Promise<StockAlertItem[]> {
   if (!outletIds.length) return [];
 
   const perOutlet = await Promise.all(outletIds.map((id) => getStockItems(id)));
@@ -392,7 +436,7 @@ export async function getStockAlerts(outletIds: number[]): Promise<StockAlertIte
   return unique.slice(0, 4).map((item) => ({
     icon: iconForUnit(item.unitName),
     name: item.name,
-    stockLabel: `Stock ${item.qtyOnHand} ${item.unitName}`,
+    stockLabel: t("dashboard.stockLabel", { qty: item.qtyOnHand, unit: item.unitName }),
     status: item.status === "OUT_OF_STOCK" ? "Low Stock" : "Reorder Soon",
   }));
 }

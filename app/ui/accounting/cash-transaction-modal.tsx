@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { XIcon } from "@/app/ui/pos/icons";
 import { createCashTransaction } from "@/app/accounting/actions";
 import type { AccountOption } from "@/lib/accounting";
+import { useI18n } from "@/app/i18n-provider";
 
 export function CashTransactionModal({
   outletId,
@@ -16,6 +17,7 @@ export function CashTransactionModal({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const cashAccounts = accounts.filter((a) => a.isCashBank);
   const counterpartAccounts = accounts.filter((a) => !a.isCashBank);
 
@@ -33,7 +35,7 @@ export function CashTransactionModal({
   function handleSubmit() {
     setError(null);
     if (amount <= 0) {
-      setError("Amount must be greater than zero.");
+      setError(t("accounting.errAmountPositive"));
       return;
     }
 
@@ -48,7 +50,7 @@ export function CashTransactionModal({
         description,
       });
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       router.refresh();
@@ -60,12 +62,12 @@ export function CashTransactionModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">New Cash Transaction</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t("accounting.newCashTransaction")}</h2>
           <button
             type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -86,7 +88,7 @@ export function CashTransactionModal({
                 txnType === "IN" ? "bg-emerald-600 text-white" : "text-gray-500"
               }`}
             >
-              Cash In
+              {t("dashboard.cashIn")}
             </button>
             <button
               type="button"
@@ -95,13 +97,13 @@ export function CashTransactionModal({
                 txnType === "OUT" ? "bg-red-600 text-white" : "text-gray-500"
               }`}
             >
-              Cash Out
+              {t("dashboard.cashOut")}
             </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-gray-500">Cash / Bank Account</label>
+              <label className="text-xs text-gray-500">{t("accounting.cashBankAccount")}</label>
               <select
                 value={cashAccountId}
                 onChange={(e) => setCashAccountId(Number(e.target.value))}
@@ -115,7 +117,7 @@ export function CashTransactionModal({
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500">Date</label>
+              <label className="text-xs text-gray-500">{t("accounting.colDate")}</label>
               <input
                 type="date"
                 value={txnDate}
@@ -127,7 +129,7 @@ export function CashTransactionModal({
 
           <div>
             <label className="text-xs text-gray-500">
-              {txnType === "IN" ? "Source (Credit)" : "Category (Debit)"}
+              {txnType === "IN" ? t("accounting.sourceCredit") : t("accounting.categoryDebit")}
             </label>
             <select
               value={counterpartAccountId}
@@ -143,7 +145,7 @@ export function CashTransactionModal({
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">Amount</label>
+            <label className="text-xs text-gray-500">{t("accounting.amount")}</label>
             <input
               type="number"
               min={0}
@@ -154,11 +156,11 @@ export function CashTransactionModal({
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">Description</label>
+            <label className="text-xs text-gray-500">{t("accounting.description")}</label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Cleaning supplies"
+              placeholder={t("accounting.descriptionPlaceholder")}
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
             />
           </div>
@@ -170,7 +172,7 @@ export function CashTransactionModal({
             onClick={onClose}
             className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -178,7 +180,7 @@ export function CashTransactionModal({
             disabled={isPending}
             className="rounded-xl bg-amber-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isPending ? "Saving..." : "Save Transaction"}
+            {isPending ? t("common.saving") : t("accounting.saveTransaction")}
           </button>
         </div>
       </div>

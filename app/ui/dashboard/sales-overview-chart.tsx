@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { ChevronDownIcon } from "@/app/ui/icons";
 import type { SalesPoint } from "@/lib/dashboard-data";
+import { useI18n } from "@/app/i18n-provider";
 
 const WIDTH = 640;
 const HEIGHT = 240;
@@ -32,6 +33,7 @@ function yAt(value: number) {
 }
 
 export function SalesOverviewChart({ data }: { data: SalesPoint[] }) {
+  const { t } = useI18n();
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -76,23 +78,23 @@ export function SalesOverviewChart({ data }: { data: SalesPoint[] }) {
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-900">Sales Overview</h2>
+        <h2 className="text-base font-semibold text-gray-900">{t("dashboard.salesOverview")}</h2>
         <button
           type="button"
           className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
         >
-          Daily
+          {t("dashboard.daily")}
           <ChevronDownIcon className="h-3.5 w-3.5 text-gray-400" />
         </button>
       </div>
 
       <div className="mt-1 flex items-center gap-4 text-xs text-gray-500">
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-4 rounded-full bg-amber-700" /> This Week
+          <span className="h-0.5 w-4 rounded-full bg-amber-700" /> {t("dashboard.thisWeek")}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 rounded-full border-t-2 border-dashed border-gray-400" />
-          Last Week
+          {t("dashboard.lastWeek")}
         </span>
       </div>
 
@@ -188,8 +190,8 @@ export function SalesOverviewChart({ data }: { data: SalesPoint[] }) {
             }}
           >
             <p className="font-semibold text-gray-900">{active.day}</p>
-            <p className="mt-1 text-amber-700">This week: {formatFullRp(active.thisWeek)}</p>
-            <p className="text-gray-500">Last week: {formatFullRp(active.lastWeek)}</p>
+            <p className="mt-1 text-amber-700">{t("dashboard.thisWeek")}: {formatFullRp(active.thisWeek)}</p>
+            <p className="text-gray-500">{t("dashboard.lastWeek")}: {formatFullRp(active.lastWeek)}</p>
           </div>
         )}
       </div>

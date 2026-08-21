@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PlusIcon, TrashIcon, XIcon } from "@/app/ui/pos/icons";
 import { createJournalEntry } from "@/app/accounting/actions";
 import type { AccountOption } from "@/lib/accounting";
+import { useI18n } from "@/app/i18n-provider";
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -26,6 +27,7 @@ export function JournalEntryModal({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
   const [memo, setMemo] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([
@@ -57,7 +59,7 @@ export function JournalEntryModal({
   function handleSubmit() {
     setError(null);
     if (!isBalanced) {
-      setError("Debit and credit totals must match before saving.");
+      setError(t("accounting.errDebitCreditMismatch"));
       return;
     }
 
@@ -73,7 +75,7 @@ export function JournalEntryModal({
         })),
       });
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       router.refresh();
@@ -85,12 +87,12 @@ export function JournalEntryModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">New Journal Entry</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t("accounting.newJournalEntry")}</h2>
           <button
             type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -104,7 +106,7 @@ export function JournalEntryModal({
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-gray-500">Date</label>
+            <label className="text-xs text-gray-500">{t("accounting.colDate")}</label>
             <input
               type="date"
               value={entryDate}
@@ -113,11 +115,11 @@ export function JournalEntryModal({
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500">Memo</label>
+            <label className="text-xs text-gray-500">{t("accounting.memo")}</label>
             <input
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
-              placeholder="e.g. Owner capital injection"
+              placeholder={t("accounting.memoPlaceholder")}
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
             />
           </div>
@@ -125,23 +127,23 @@ export function JournalEntryModal({
 
         <div className="mt-4 rounded-2xl border border-gray-100 p-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">Lines</h3>
+            <h3 className="text-sm font-semibold text-gray-900">{t("accounting.lines")}</h3>
             <button
               type="button"
               onClick={addLine}
               className="flex items-center gap-1.5 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
             >
               <PlusIcon className="h-3.5 w-3.5" />
-              Add Line
+              {t("accounting.addLine")}
             </button>
           </div>
 
           <table className="mt-3 w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-                <th className="pb-2 font-medium">Account</th>
-                <th className="pb-2 font-medium">Debit</th>
-                <th className="pb-2 font-medium">Credit</th>
+                <th className="pb-2 font-medium">{t("accounting.colAccount")}</th>
+                <th className="pb-2 font-medium">{t("accounting.colDebit")}</th>
+                <th className="pb-2 font-medium">{t("accounting.colCredit")}</th>
                 <th className="pb-2 font-medium"></th>
               </tr>
             </thead>
@@ -198,11 +200,11 @@ export function JournalEntryModal({
 
           <div className="mt-3 flex items-center justify-end gap-6 border-t border-gray-100 pt-3 text-sm">
             <span>
-              <span className="text-gray-400">Total Debit: </span>
+              <span className="text-gray-400">{t("accounting.totalDebitLabel")}</span>
               <span className="font-medium text-gray-900">{formatRp(totalDebit)}</span>
             </span>
             <span>
-              <span className="text-gray-400">Total Credit: </span>
+              <span className="text-gray-400">{t("accounting.totalCreditLabel")}</span>
               <span className="font-medium text-gray-900">{formatRp(totalCredit)}</span>
             </span>
             <span
@@ -210,7 +212,7 @@ export function JournalEntryModal({
                 isBalanced ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
               }`}
             >
-              {isBalanced ? "Balanced" : "Not Balanced"}
+              {isBalanced ? t("accounting.balanced") : t("accounting.notBalanced")}
             </span>
           </div>
         </div>
@@ -221,7 +223,7 @@ export function JournalEntryModal({
             onClick={onClose}
             className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -229,7 +231,7 @@ export function JournalEntryModal({
             disabled={isPending || !isBalanced}
             className="rounded-xl bg-amber-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isPending ? "Saving..." : "Post Entry"}
+            {isPending ? t("common.saving") : t("accounting.postEntry")}
           </button>
         </div>
       </div>

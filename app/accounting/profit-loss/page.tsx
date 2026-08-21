@@ -5,6 +5,8 @@ import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
 import { InventoryStatCard } from "@/app/ui/inventory/stat-card";
 import { DollarSignIcon, ReceiptIcon, TrendingUpIcon } from "@/app/ui/dashboard/icons";
+import { getT } from "@/lib/i18n/server";
+import { PageHeader } from "@/app/ui/page-header";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
 
@@ -27,6 +29,7 @@ export default async function ProfitLossPage({
   searchParams: Promise<{ outlet?: string; from?: string; to?: string }>;
 }) {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   const outlets = await getOutletsForUser(session);
   const params = await searchParams;
 
@@ -43,37 +46,32 @@ export default async function ProfitLossPage({
   const margin = report.totalRevenue > 0 ? (report.netProfit / report.totalRevenue) * 100 : 0;
 
   return (
-    <div className="p-6 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-gray-400">Accounting</p>
-          <h1 className="text-2xl font-bold text-gray-900">Profit &amp; Loss</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
-          <DateRangeSelect from={from} to={to} />
-        </div>
-      </div>
+    <>
+      <PageHeader eyebrow={t("nav.accounting")} title={t("nav.profitLoss")}>
+        <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
+        <DateRangeSelect from={from} to={to} />
+      </PageHeader>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <InventoryStatCard
-          label="Total Revenue"
+          label={t("accounting.totalRevenue")}
           value={formatRp(report.totalRevenue)}
-          caption="In selected period"
+          caption={t("inventory.inSelectedPeriod")}
           icon={DollarSignIcon}
           accent="emerald"
         />
         <InventoryStatCard
-          label="Total Expenses"
+          label={t("accounting.totalExpenses")}
           value={formatRp(report.totalExpenses)}
-          caption="Including COGS"
+          caption={t("accounting.includingCogs")}
           icon={ReceiptIcon}
           accent="red"
         />
         <InventoryStatCard
-          label="Net Profit"
+          label={t("accounting.netProfit")}
           value={formatRp(report.netProfit)}
-          caption={`${margin.toFixed(1)}% margin`}
+          caption={t("accounting.marginPercent", { pct: margin.toFixed(1) })}
           icon={TrendingUpIcon}
           accent={report.netProfit >= 0 ? "emerald" : "red"}
         />
@@ -81,13 +79,13 @@ export default async function ProfitLossPage({
 
       <div className="mt-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-5">
-          <h2 className="text-base font-semibold text-gray-900">Revenue</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t("accounting.revenue")}</h2>
         </div>
         <table className="w-full text-sm">
           <tbody>
             {report.revenue.length === 0 ? (
               <tr>
-                <td className="px-5 py-6 text-center text-gray-400">No revenue in this period.</td>
+                <td className="px-5 py-6 text-center text-gray-400">{t("accounting.noRevenueInPeriod")}</td>
               </tr>
             ) : (
               report.revenue.map((line) => (
@@ -102,7 +100,7 @@ export default async function ProfitLossPage({
               ))
             )}
             <tr className="border-t border-gray-200 bg-gray-50/60">
-              <td className="px-5 py-2.5 font-semibold text-gray-900">Total Revenue</td>
+              <td className="px-5 py-2.5 font-semibold text-gray-900">{t("accounting.totalRevenue")}</td>
               <td className="px-5 py-2.5 text-right font-semibold text-gray-900">
                 {formatRp(report.totalRevenue)}
               </td>
@@ -113,13 +111,13 @@ export default async function ProfitLossPage({
 
       <div className="mt-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-5">
-          <h2 className="text-base font-semibold text-gray-900">Expenses</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t("accounting.expenses")}</h2>
         </div>
         <table className="w-full text-sm">
           <tbody>
             {report.expenses.length === 0 ? (
               <tr>
-                <td className="px-5 py-6 text-center text-gray-400">No expenses in this period.</td>
+                <td className="px-5 py-6 text-center text-gray-400">{t("accounting.noExpensesInPeriod")}</td>
               </tr>
             ) : (
               report.expenses.map((line) => (
@@ -134,13 +132,13 @@ export default async function ProfitLossPage({
               ))
             )}
             <tr className="border-t border-gray-200 bg-gray-50/60">
-              <td className="px-5 py-2.5 font-semibold text-gray-900">Total Expenses</td>
+              <td className="px-5 py-2.5 font-semibold text-gray-900">{t("accounting.totalExpenses")}</td>
               <td className="px-5 py-2.5 text-right font-semibold text-gray-900">
                 {formatRp(report.totalExpenses)}
               </td>
             </tr>
             <tr className="border-t border-gray-200">
-              <td className="px-5 py-3 text-base font-bold text-gray-900">Net Profit</td>
+              <td className="px-5 py-3 text-base font-bold text-gray-900">{t("accounting.netProfit")}</td>
               <td
                 className={`px-5 py-3 text-right text-base font-bold ${
                   report.netProfit >= 0 ? "text-emerald-600" : "text-red-600"
@@ -152,6 +150,7 @@ export default async function ProfitLossPage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

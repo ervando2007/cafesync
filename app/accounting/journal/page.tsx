@@ -4,6 +4,8 @@ import { getAccounts, getJournalEntries } from "@/lib/accounting";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
 import { JournalEntriesTable } from "@/app/ui/accounting/journal-entries-table";
+import { getT } from "@/lib/i18n/server";
+import { PageHeader } from "@/app/ui/page-header";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
 const POSTER_ROLES = ["ADMIN", "ACCOUNTING"];
@@ -23,6 +25,7 @@ export default async function JournalPage({
   searchParams: Promise<{ outlet?: string; from?: string; to?: string }>;
 }) {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   const roles = session.user.roles;
   const outlets = await getOutletsForUser(session);
   const params = await searchParams;
@@ -44,19 +47,13 @@ export default async function JournalPage({
   const canPost = roles.some((r) => POSTER_ROLES.includes(r));
 
   return (
-    <div className="p-6 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-gray-400">Accounting</p>
-          <h1 className="text-2xl font-bold text-gray-900">Journal Entries</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
-          <DateRangeSelect from={from} to={to} />
-        </div>
-      </div>
+    <>
+      <PageHeader eyebrow={t("nav.accounting")} title={t("nav.journalEntries")}>
+        <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
+        <DateRangeSelect from={from} to={to} />
+      </PageHeader>
 
-      <div className="mt-6">
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
         <JournalEntriesTable
           outletId={selectedOutletId}
           entries={entries}
@@ -64,6 +61,6 @@ export default async function JournalPage({
           canPost={canPost}
         />
       </div>
-    </div>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
 import { getHeldOrders, getOrderDetail, type HeldOrderSummary, type OrderDetail } from "@/lib/pos";
 import { nextOrderNo } from "@/lib/order-no";
 import { nextJournalNo } from "@/lib/journal-no";
+import { getT } from "@/lib/i18n/server";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "CASHIER"];
 // DINE_IN_QR isn't offered as a creation choice in the POS header (staff always pick
@@ -186,21 +187,22 @@ export async function submitOrder(
   input: SubmitOrderInput,
 ): Promise<SubmitOrderResult | SubmitOrderError> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("pos.errNoOutletAccess") };
   }
 
   if (!input.items.length) {
-    return { ok: false, message: "Cart is empty." };
+    return { ok: false, message: t("pos.errCartEmpty") };
   }
   if (!CHANNELS.includes(input.channel)) {
-    return { ok: false, message: "Invalid order channel." };
+    return { ok: false, message: t("pos.errInvalidChannel") };
   }
   if (input.mode === "pay" && !input.paymentMethod) {
-    return { ok: false, message: "Payment method is required." };
+    return { ok: false, message: t("pos.errPaymentMethodRequired") };
   }
   if (input.paymentMethod && !PAYMENT_METHODS.includes(input.paymentMethod)) {
-    return { ok: false, message: "Invalid payment method." };
+    return { ok: false, message: t("pos.errInvalidPaymentMethod") };
   }
 
   const conn = await pool.getConnection();
@@ -229,7 +231,7 @@ export async function submitOrder(
       const priced = priceMap.get(item.productId);
       if (!priced || item.qty <= 0) {
         await conn.rollback();
-        return { ok: false, message: "One or more items are unavailable." };
+        return { ok: false, message: t("pos.errItemsUnavailable") };
       }
       const lineTotal = priced.price * item.qty;
       subtotal += lineTotal;
@@ -269,7 +271,7 @@ export async function submitOrder(
       );
       if (updateResult.affectedRows === 0) {
         await conn.rollback();
-        return { ok: false, message: "That held order is no longer available." };
+        return { ok: false, message: t("pos.errHeldOrderUnavailable") };
       }
       await conn.query("DELETE FROM order_items WHERE order_id = ?", [input.holdOrderId]);
       orderId = input.holdOrderId;
@@ -342,12 +344,12 @@ export async function submitOrder(
     await conn.commit();
 
     const order = await getOrderDetail(orderId);
-    if (!order) return { ok: false, message: "Order saved but could not be reloaded." };
+    if (!order) return { ok: false, message: t("pos.errOrderSavedNotReloaded") };
     return { ok: true, order };
   } catch (error) {
     await conn.rollback();
     console.error("submitOrder failed", error);
-    return { ok: false, message: "Could not save the order. Please try again." };
+    return { ok: false, message: t("pos.errCouldNotSaveOrder") };
   } finally {
     conn.release();
   }

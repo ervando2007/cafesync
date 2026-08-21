@@ -1,7 +1,10 @@
 import Image from "next/image";
 import { CoffeeCupIcon, ShieldCheckIcon } from "@/app/ui/icons";
+import { getT } from "@/lib/i18n/server";
 
-export function LoginHero() {
+export async function LoginHero() {
+  const { t } = await getT();
+
   return (
     <div className="relative hidden flex-col justify-between overflow-hidden bg-[#1b140f] p-10 text-white lg:flex">
       <Image
@@ -28,19 +31,17 @@ export function LoginHero() {
           <p className="text-xl font-bold leading-tight">
             Cafe<span className="text-amber-400">Sync</span>
           </p>
-          <p className="text-xs text-white/60">Cafe Management System</p>
+          <p className="text-xs text-white/60">{t("login.cafeManagementSystem")}</p>
         </div>
       </div>
 
       <div className="relative">
         <h1 className="text-4xl font-bold leading-tight">
-          Manage Your Cafe,
+          {t("login.heroTitleLine1")}
           <br />
-          Grow Your Business
+          {t("login.heroTitleLine2")}
         </h1>
-        <p className="mt-4 max-w-sm text-white/70">
-          All-in-one system for POS, Inventory, Accounting and More.
-        </p>
+        <p className="mt-4 max-w-sm text-white/70">{t("login.heroSubtitle")}</p>
       </div>
 
       <div className="relative flex items-start gap-3 rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur-sm">
@@ -48,10 +49,8 @@ export function LoginHero() {
           <ShieldCheckIcon className="h-4.5 w-4.5" />
         </span>
         <div>
-          <p className="font-semibold">Secure &amp; Reliable</p>
-          <p className="text-sm text-white/60">
-            Your data is protected with enterprise-grade security.
-          </p>
+          <p className="font-semibold">{t("login.secureReliable")}</p>
+          <p className="text-sm text-white/60">{t("login.secureReliableDesc")}</p>
         </div>
       </div>
     </div>

@@ -7,6 +7,8 @@ import { LineItemEditor, type EditorLine } from "@/app/ui/inventory/line-item-ed
 import { adjustment } from "@/app/inventory/actions";
 import type { OutletOption } from "@/lib/pos";
 import type { StockItemOption } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
+import { PageHeader } from "@/app/ui/page-header";
 
 export function AdjustmentForm({
   outlets,
@@ -18,6 +20,7 @@ export function AdjustmentForm({
   selectedOutletId: number;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<EditorLine[]>([]);
   const [message, setMessage] = useState<{ type: "error" | "info"; text: string } | null>(null);
@@ -29,11 +32,11 @@ export function AdjustmentForm({
   function handleSubmit() {
     setMessage(null);
     if (lines.length === 0) {
-      setMessage({ type: "error", text: "Add at least one item." });
+      setMessage({ type: "error", text: t("inventory.addAtLeastOneItemPeriod") });
       return;
     }
     if (lines.some((l) => l.qty < 0)) {
-      setMessage({ type: "error", text: "Actual quantity cannot be negative." });
+      setMessage({ type: "error", text: t("inventory.negativeQtyError") });
       return;
     }
 
@@ -48,26 +51,23 @@ export function AdjustmentForm({
         })),
       });
       if (!result.ok) {
-        setMessage({ type: "error", text: result.message ?? "Something went wrong." });
+        setMessage({ type: "error", text: result.message ?? t("common.somethingWentWrong") });
         return;
       }
       setLines([]);
       setNotes("");
-      setMessage({ type: "info", text: "Adjustment saved successfully." });
+      setMessage({ type: "info", text: t("inventory.adjustmentSaved") });
       router.refresh();
     });
   }
 
   return (
-    <div className="p-6 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-gray-400">Inventory</p>
-          <h1 className="text-2xl font-bold text-gray-900">Adjustments</h1>
-        </div>
+    <>
+      <PageHeader eyebrow={t("nav.inventory")} title={t("inventory.adjustmentsTitle")}>
         <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
-      </div>
+      </PageHeader>
 
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
       {message && (
         <div
           className={`mt-4 rounded-xl px-4 py-3 text-sm font-medium ${
@@ -79,20 +79,17 @@ export function AdjustmentForm({
       )}
 
       <div className="mt-6">
-        <label className="text-xs text-gray-500">Description / Remarks</label>
+        <label className="text-xs text-gray-500">{t("inventory.descriptionRemarks")}</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
-          placeholder="e.g. Stock count correction after physical count"
+          placeholder={t("inventory.adjustmentNotesPlaceholder")}
           className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
         />
       </div>
 
-      <p className="mt-4 text-xs text-gray-400">
-        Set each item&apos;s actual counted quantity — the system compares it against current stock
-        and posts the difference.
-      </p>
+      <p className="mt-4 text-xs text-gray-400">{t("inventory.adjustmentHint")}</p>
 
       <div className="mt-3">
         <LineItemEditor
@@ -105,7 +102,7 @@ export function AdjustmentForm({
 
       <div className="mt-6 flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
         <div>
-          <p className="text-xs text-gray-500">Net Adjustment Value</p>
+          <p className="text-xs text-gray-500">{t("inventory.netAdjustmentValue")}</p>
           <p className={`text-xl font-bold ${netChange < 0 ? "text-red-600" : "text-emerald-600"}`}>
             {netChange >= 0 ? "+" : ""}
             Rp {Math.round(netChange).toLocaleString("id-ID")}
@@ -117,9 +114,10 @@ export function AdjustmentForm({
           disabled={isPending}
           className="rounded-xl bg-amber-700 px-6 py-3 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isPending ? "Saving..." : "Save Adjustment"}
+          {isPending ? t("common.saving") : t("inventory.saveAdjustment")}
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

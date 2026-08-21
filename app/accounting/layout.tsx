@@ -11,7 +11,12 @@ export default async function AccountingLayout({ children }: LayoutProps<"/accou
   return (
     <div className="flex min-h-screen bg-[#f7f5f2]">
       <div className="print:hidden">
-        <AccountingSidebar userName={userName} userRole={userRole} visibleMenuKeys={visibleMenuKeys} />
+        <AccountingSidebar
+          userName={userName}
+          userRole={userRole}
+          avatarUrl={session.user.image}
+          visibleMenuKeys={visibleMenuKeys}
+        />
       </div>
       <div className="flex min-h-screen flex-1 flex-col overflow-x-hidden pt-14 lg:pt-0 print:pt-0">
         {children}

@@ -7,13 +7,19 @@ export interface DbUser {
   email: string;
   name: string;
   password_hash: string | null;
+  avatar_url: string | null;
+  whatsapp_number: string | null;
+  address: string | null;
   google_sub: string | null;
   status: "ACTIVE" | "INACTIVE" | "LOCKED";
 }
 
+const USER_COLUMNS =
+  "id, email, name, password_hash, avatar_url, whatsapp_number, address, google_sub, status";
+
 export async function findUserByEmail(email: string): Promise<DbUser | null> {
   const [rows] = await pool.query<(DbUser & RowDataPacket)[]>(
-    "SELECT id, email, name, password_hash, google_sub, status FROM users WHERE email = ? LIMIT 1",
+    `SELECT ${USER_COLUMNS} FROM users WHERE email = ? LIMIT 1`,
     [email],
   );
   return rows[0] ?? null;
@@ -23,8 +29,16 @@ export async function findUserByGoogleSub(
   googleSub: string,
 ): Promise<DbUser | null> {
   const [rows] = await pool.query<(DbUser & RowDataPacket)[]>(
-    "SELECT id, email, name, password_hash, google_sub, status FROM users WHERE google_sub = ? LIMIT 1",
+    `SELECT ${USER_COLUMNS} FROM users WHERE google_sub = ? LIMIT 1`,
     [googleSub],
+  );
+  return rows[0] ?? null;
+}
+
+export async function findUserById(id: number | string): Promise<DbUser | null> {
+  const [rows] = await pool.query<(DbUser & RowDataPacket)[]>(
+    `SELECT ${USER_COLUMNS} FROM users WHERE id = ? LIMIT 1`,
+    [id],
   );
   return rows[0] ?? null;
 }
@@ -121,6 +135,9 @@ export async function createGoogleUser(
     email,
     name,
     password_hash: null,
+    avatar_url: null,
+    whatsapp_number: null,
+    address: null,
     google_sub: googleSub,
     status: "ACTIVE",
   };

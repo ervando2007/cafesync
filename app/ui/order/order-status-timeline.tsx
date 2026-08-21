@@ -1,21 +1,24 @@
 import { CheckCircleIcon } from "@/app/ui/pos/icons";
+import { getT } from "@/lib/i18n/server";
 
 const HAPPY_PATH = ["OPEN", "CONFIRMED", "PREPARING", "READY", "SERVED", "PAID"] as const;
 
-const STEP_LABELS: Record<string, string> = {
-  OPEN: "Order Received",
-  CONFIRMED: "Confirmed",
-  PREPARING: "Preparing",
-  READY: "Ready",
-  SERVED: "Served",
-  PAID: "Paid",
-};
+export async function OrderStatusTimeline({ status }: { status: string }) {
+  const { t } = await getT();
 
-export function OrderStatusTimeline({ status }: { status: string }) {
+  const STEP_LABELS: Record<string, string> = {
+    OPEN: t("order.stepOrderReceived"),
+    CONFIRMED: t("order.stepConfirmed"),
+    PREPARING: t("order.stepPreparing"),
+    READY: t("order.stepReady"),
+    SERVED: t("order.stepServed"),
+    PAID: t("order.stepPaid"),
+  };
+
   if (status === "CANCELLED" || status === "REFUNDED") {
     return (
       <div className="rounded-xl bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-700">
-        This order was {status === "CANCELLED" ? "cancelled" : "refunded"}.
+        {status === "CANCELLED" ? t("order.orderCancelled") : t("order.orderRefunded")}
       </div>
     );
   }

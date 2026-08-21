@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { XIcon } from "@/app/ui/pos/icons";
 import { removeOutletProduct, upsertOutletProduct } from "@/app/master-data/actions";
 import type { OutletPriceRow } from "@/lib/products";
+import { useI18n } from "@/app/i18n-provider";
 
 function OutletPriceRowEditor({
   productId,
@@ -14,6 +15,7 @@ function OutletPriceRowEditor({
   row: OutletPriceRow;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [sellingPrice, setSellingPrice] = useState(row.sellingPrice ?? 0);
   const [taxRatePercent, setTaxRatePercent] = useState((row.taxRate ?? 0.1) * 100);
   const [isAvailable, setIsAvailable] = useState(row.isAvailable);
@@ -31,10 +33,10 @@ function OutletPriceRowEditor({
         isAvailable,
       });
       if (!result.ok) {
-        setMessage(result.message ?? "Something went wrong.");
+        setMessage(result.message ?? t("common.somethingWentWrong"));
         return;
       }
-      setMessage("Saved.");
+      setMessage(t("masterData.saved"));
       router.refresh();
     });
   }
@@ -44,7 +46,7 @@ function OutletPriceRowEditor({
     startTransition(async () => {
       const result = await removeOutletProduct({ outletId: row.outletId, productId });
       if (!result.ok) {
-        setMessage(result.message ?? "Something went wrong.");
+        setMessage(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       setSellingPrice(0);
@@ -56,11 +58,11 @@ function OutletPriceRowEditor({
     <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 border-b border-gray-50 py-3 last:border-0">
       <div>
         <p className="text-sm font-medium text-gray-900">{row.outletName}</p>
-        {!row.isSet && <p className="text-xs text-gray-400">Not configured — Rp 0 in POS</p>}
+        {!row.isSet && <p className="text-xs text-gray-400">{t("masterData.notConfiguredHint")}</p>}
         {message && <p className="text-xs text-amber-700">{message}</p>}
       </div>
       <div>
-        <label className="block text-[11px] text-gray-400">Price</label>
+        <label className="block text-[11px] text-gray-400">{t("masterData.price")}</label>
         <input
           type="number"
           min={0}
@@ -70,7 +72,7 @@ function OutletPriceRowEditor({
         />
       </div>
       <div>
-        <label className="block text-[11px] text-gray-400">Tax %</label>
+        <label className="block text-[11px] text-gray-400">{t("masterData.taxPercent")}</label>
         <input
           type="number"
           min={0}
@@ -81,7 +83,7 @@ function OutletPriceRowEditor({
         />
       </div>
       <label className="flex flex-col items-center gap-1 text-[11px] text-gray-400">
-        Available
+        {t("masterData.available")}
         <input
           type="checkbox"
           checked={isAvailable}
@@ -96,7 +98,7 @@ function OutletPriceRowEditor({
           disabled={isPending}
           className="rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
         >
-          Save
+          {t("common.save")}
         </button>
         {row.isSet && (
           <button
@@ -105,7 +107,7 @@ function OutletPriceRowEditor({
             disabled={isPending}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
           >
-            Remove
+            {t("common.remove")}
           </button>
         )}
       </div>
@@ -124,32 +126,30 @@ export function OutletPricingModal({
   outletPrices: OutletPriceRow[];
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Outlet Pricing</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t("masterData.outletPricing")}</h2>
             <p className="text-xs text-gray-400">{productName}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <XIcon className="h-5 w-5" />
           </button>
         </div>
 
-        <p className="mt-3 text-xs text-gray-400">
-          Set a selling price per outlet to make this product available for sale there. An outlet
-          with no price configured won&apos;t show this product in POS.
-        </p>
+        <p className="mt-3 text-xs text-gray-400">{t("masterData.setPricePerOutletHint")}</p>
 
         <div className="mt-4 max-h-[60vh] overflow-y-auto">
           {outletPrices.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-400">No active outlets.</p>
+            <p className="py-8 text-center text-sm text-gray-400">{t("masterData.noActiveOutlets")}</p>
           ) : (
             outletPrices.map((row) => (
               <OutletPriceRowEditor key={row.outletId} productId={productId} row={row} />
@@ -163,7 +163,7 @@ export function OutletPricingModal({
             onClick={onClose}
             className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            Close
+            {t("common.close")}
           </button>
         </div>
       </div>

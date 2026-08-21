@@ -6,6 +6,7 @@ import { XIcon } from "@/app/ui/pos/icons";
 import { CategoryManagerModal } from "@/app/ui/inventory/category-manager-modal";
 import { createStockItem, updateStockItem } from "@/app/inventory/actions";
 import type { CategoryOption, StockItemRow, UnitOption } from "@/lib/inventory";
+import { useI18n } from "@/app/i18n-provider";
 
 export function ItemFormModal({
   mode,
@@ -21,6 +22,7 @@ export function ItemFormModal({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [sku, setSku] = useState(item?.sku ?? "");
   const [name, setName] = useState(item?.name ?? "");
   const [unitId, setUnitId] = useState(item?.unitId ?? units[0]?.id ?? 0);
@@ -52,7 +54,7 @@ export function ItemFormModal({
           : await updateStockItem({ ...input, id: item!.stockItemId });
 
       if (!result.ok) {
-        setError(result.message ?? "Something went wrong.");
+        setError(result.message ?? t("common.somethingWentWrong"));
         return;
       }
       router.refresh();
@@ -65,13 +67,13 @@ export function ItemFormModal({
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">
-            {mode === "create" ? "Add Item" : "Edit Item"}
+            {mode === "create" ? t("inventory.addItemTitle") : t("inventory.editItemTitle")}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -89,17 +91,17 @@ export function ItemFormModal({
             <input
               value={sku}
               onChange={(e) => setSku(e.target.value)}
-              placeholder="e.g. RM-COF-001"
+              placeholder={t("inventory.skuPlaceholder")}
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">Item Name</label>
+            <label className="text-xs text-gray-500">{t("inventory.itemName")}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Arabica Coffee Beans"
+              placeholder={t("inventory.itemNamePlaceholder")}
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
             />
           </div>
@@ -107,13 +109,13 @@ export function ItemFormModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between">
-                <label className="text-xs text-gray-500">Category</label>
+                <label className="text-xs text-gray-500">{t("inventory.category")}</label>
                 <button
                   type="button"
                   onClick={() => setShowCategoryManager(true)}
                   className="text-xs font-medium text-amber-700 hover:text-amber-800"
                 >
-                  Manage
+                  {t("common.manage")}
                 </button>
               </div>
               <select
@@ -121,7 +123,7 @@ export function ItemFormModal({
                 onChange={(e) => setCategoryId(Number(e.target.value))}
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
               >
-                {selectableCategories.length === 0 && <option value={0}>No categories</option>}
+                {selectableCategories.length === 0 && <option value={0}>{t("inventory.noCategories")}</option>}
                 {selectableCategories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -130,7 +132,7 @@ export function ItemFormModal({
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500">Unit</label>
+              <label className="text-xs text-gray-500">{t("inventory.unit")}</label>
               <select
                 value={unitId}
                 onChange={(e) => setUnitId(Number(e.target.value))}
@@ -146,7 +148,7 @@ export function ItemFormModal({
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">Reorder Level</label>
+            <label className="text-xs text-gray-500">{t("inventory.reorderLevel")}</label>
             <input
               type="number"
               min={0}
@@ -155,9 +157,7 @@ export function ItemFormModal({
               onChange={(e) => setReorderLevel(Number(e.target.value))}
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
             />
-            <p className="mt-1 text-xs text-gray-400">
-              Item is flagged &ldquo;Low Stock&rdquo; when quantity on hand falls to or below this level.
-            </p>
+            <p className="mt-1 text-xs text-gray-400">{t("inventory.reorderLevelHint")}</p>
           </div>
         </div>
 
@@ -167,7 +167,7 @@ export function ItemFormModal({
             onClick={onClose}
             className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -175,7 +175,7 @@ export function ItemFormModal({
             disabled={isPending || units.length === 0 || selectableCategories.length === 0}
             className="rounded-xl bg-amber-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isPending ? "Saving..." : "Save Item"}
+            {isPending ? t("common.saving") : t("inventory.saveItem")}
           </button>
         </div>
       </div>

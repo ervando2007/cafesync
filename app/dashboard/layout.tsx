@@ -12,7 +12,12 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-[#f7f5f2]">
-      <DashboardSidebar userName={userName} userRole={userRole} visibleMenuKeys={visibleMenuKeys} />
+      <DashboardSidebar
+        userName={userName}
+        userRole={userRole}
+        avatarUrl={session.user.image}
+        visibleMenuKeys={visibleMenuKeys}
+      />
       <div className="flex min-h-screen flex-1 flex-col overflow-x-hidden pt-14 lg:pt-0">
         {children}
       </div>

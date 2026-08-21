@@ -1,6 +1,9 @@
+"use client";
+
 import { CoffeeCupIcon } from "@/app/ui/icons";
 import { GridIcon, UtensilsIcon } from "@/app/ui/dashboard/icons";
 import { SearchIcon } from "@/app/ui/pos/icons";
+import { useI18n } from "@/app/i18n-provider";
 
 export function MenuSidebar({
   categories,
@@ -15,6 +18,7 @@ export function MenuSidebar({
   search: string;
   onSearchChange: (value: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-5">
       <div className="relative">
@@ -22,7 +26,7 @@ export function MenuSidebar({
         <input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search menu..."
+          placeholder={t("pos.searchMenu")}
           className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
         />
       </div>
@@ -41,7 +45,7 @@ export function MenuSidebar({
               }`}
             >
               <Icon className="h-4.5 w-4.5" />
-              {category}
+              {category === "All Menu" ? t("order.allMenu") : category}
             </button>
           );
         })}

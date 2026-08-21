@@ -4,6 +4,8 @@ import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
 import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
 import { nextJournalNo } from "@/lib/journal-no";
+import { getT } from "@/lib/i18n/server";
+import type { TranslateFn } from "@/lib/i18n/translate";
 
 const ALLOWED_ROLES = ["ADMIN", "ACCOUNTING"];
 
@@ -25,28 +27,29 @@ export interface CreateJournalEntryInput {
   lines: JournalLineInput[];
 }
 
-function validateLines(lines: JournalLineInput[]): string | null {
-  if (lines.length < 2) return "A journal entry needs at least two lines.";
+function validateLines(lines: JournalLineInput[], t: TranslateFn): string | null {
+  if (lines.length < 2) return t("accounting.errMinTwoLines");
   for (const line of lines) {
-    if (line.debit < 0 || line.credit < 0) return "Amounts cannot be negative.";
-    if (line.debit > 0 && line.credit > 0) return "A line cannot have both a debit and a credit.";
-    if (line.debit === 0 && line.credit === 0) return "Every line needs a debit or credit amount.";
+    if (line.debit < 0 || line.credit < 0) return t("accounting.errAmountsNegative");
+    if (line.debit > 0 && line.credit > 0) return t("accounting.errBothDebitCredit");
+    if (line.debit === 0 && line.credit === 0) return t("accounting.errLineNeedsAmount");
   }
   const totalDebit = lines.reduce((sum, l) => sum + l.debit, 0);
   const totalCredit = lines.reduce((sum, l) => sum + l.credit, 0);
   if (Math.abs(totalDebit - totalCredit) > 0.01) {
-    return `Entry does not balance (debit ${totalDebit} vs credit ${totalCredit}).`;
+    return t("accounting.errEntryNotBalanced", { debit: totalDebit, credit: totalCredit });
   }
   return null;
 }
 
 export async function createJournalEntry(input: CreateJournalEntryInput): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("pos.errNoOutletAccess") };
   }
-  if (!input.memo.trim()) return { ok: false, message: "A memo is required." };
-  const lineError = validateLines(input.lines);
+  if (!input.memo.trim()) return { ok: false, message: t("accounting.errMemoRequired") };
+  const lineError = validateLines(input.lines, t);
   if (lineError) return { ok: false, message: lineError };
 
   const conn = await pool.getConnection();
@@ -73,7 +76,7 @@ export async function createJournalEntry(input: CreateJournalEntryInput): Promis
   } catch (error) {
     await conn.rollback();
     console.error("createJournalEntry failed", error);
-    return { ok: false, message: "Could not save journal entry. Please try again." };
+    return { ok: false, message: t("accounting.errCouldNotSaveJournalEntry") };
   } finally {
     conn.release();
   }
@@ -93,17 +96,18 @@ export async function createCashTransaction(
   input: CreateCashTransactionInput,
 ): Promise<ActionResult> {
   const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: "You do not have access to this outlet." };
+    return { ok: false, message: t("pos.errNoOutletAccess") };
   }
   if (input.txnType !== "IN" && input.txnType !== "OUT") {
-    return { ok: false, message: "Invalid transaction type." };
+    return { ok: false, message: t("accounting.errInvalidTxnType") };
   }
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    return { ok: false, message: "Amount must be greater than zero." };
+    return { ok: false, message: t("accounting.errAmountPositive") };
   }
   if (input.cashAccountId === input.counterpartAccountId) {
-    return { ok: false, message: "Choose two different accounts." };
+    return { ok: false, message: t("accounting.errChooseTwoDifferentAccounts") };
   }
 
   const conn = await pool.getConnection();
@@ -116,7 +120,7 @@ export async function createCashTransaction(
     );
     if (!accountRows.length || !accountRows[0].is_cash_bank) {
       await conn.rollback();
-      return { ok: false, message: "Selected cash/bank account is invalid." };
+      return { ok: false, message: t("accounting.errInvalidCashAccount") };
     }
 
     await conn.query(
@@ -168,7 +172,7 @@ export async function createCashTransaction(
   } catch (error) {
     await conn.rollback();
     console.error("createCashTransaction failed", error);
-    return { ok: false, message: "Could not save cash transaction. Please try again." };
+    return { ok: false, message: t("accounting.errCouldNotSaveCashTxn") };
   } finally {
     conn.release();
   }

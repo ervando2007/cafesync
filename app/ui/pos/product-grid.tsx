@@ -7,6 +7,9 @@ import { UtensilsIcon } from "@/app/ui/dashboard/icons";
 import { ChevronLeftIcon, PlusIcon, SearchIcon, SlidersIcon } from "@/app/ui/pos/icons";
 import type { CatalogProduct } from "@/lib/pos";
 import { ChevronRightIcon } from "@/app/ui/dashboard/icons";
+import { useI18n } from "@/app/i18n-provider";
+
+const ALL_ITEMS = "All Items";
 
 const PAGE_SIZE = 12;
 
@@ -21,19 +24,20 @@ export function ProductGrid({
   catalog: CatalogProduct[];
   onAddToCart: (product: CatalogProduct) => void;
 }) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All Items");
+  const [category, setCategory] = useState(ALL_ITEMS);
   const [page, setPage] = useState(1);
 
   const categories = useMemo(() => {
     const names = Array.from(new Set(catalog.map((p) => p.categoryName)));
-    return ["All Items", ...names];
+    return [ALL_ITEMS, ...names];
   }, [catalog]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return catalog.filter((p) => {
-      const matchesCategory = category === "All Items" || p.categoryName === category;
+      const matchesCategory = category === ALL_ITEMS || p.categoryName === category;
       const matchesSearch = !q || p.name.toLowerCase().includes(q);
       return matchesCategory && matchesSearch;
     });
@@ -61,13 +65,13 @@ export function ProductGrid({
           <input
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search menu..."
+            placeholder={t("pos.searchMenu")}
             className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
           />
         </div>
         <button
           type="button"
-          aria-label="Filter"
+          aria-label={t("pos.filter")}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50"
         >
           <SlidersIcon className="h-4.5 w-4.5" />
@@ -87,14 +91,14 @@ export function ProductGrid({
                   : "text-gray-600 hover:bg-gray-50"
               }`}
             >
-              {name}
+              {name === ALL_ITEMS ? t("pos.allItems") : name}
             </button>
           ))}
         </div>
 
         <div className="flex flex-1 flex-col overflow-y-auto p-5">
           {pageItems.length === 0 ? (
-            <p className="m-auto text-sm text-gray-400">No menu items match your search.</p>
+            <p className="m-auto text-sm text-gray-400">{t("pos.noMenuItemsMatch")}</p>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
               {pageItems.map((product) => {

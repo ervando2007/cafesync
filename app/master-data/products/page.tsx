@@ -8,9 +8,12 @@ import {
   type OutletPriceRow,
 } from "@/lib/products";
 import { ProductsTable } from "@/app/ui/master-data/products-table";
+import { getT } from "@/lib/i18n/server";
+import { PageHeader } from "@/app/ui/page-header";
 
 export default async function ProductsPage() {
   const session = await requireRole(["ADMIN", "GM"]);
+  const { t } = await getT();
 
   const [products, categories, units, outlets] = await Promise.all([
     getProducts(),
@@ -28,13 +31,10 @@ export default async function ProductsPage() {
   );
 
   return (
-    <div className="p-6 sm:p-8">
-      <div>
-        <p className="text-xs font-medium text-gray-400">Master Data</p>
-        <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-      </div>
+    <>
+      <PageHeader eyebrow={t("nav.masterData")} title={t("nav.products")} />
 
-      <div className="mt-6">
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
         <ProductsTable
           products={products}
           categories={categories}
@@ -43,6 +43,6 @@ export default async function ProductsPage() {
           outletCount={outletCount}
         />
       </div>
-    </div>
+    </>
   );
 }
