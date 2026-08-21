@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# user-uploaded content (local disk storage, not deployment-durable)
+/public/uploads/
