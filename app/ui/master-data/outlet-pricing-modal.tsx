@@ -3,15 +3,31 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { XIcon } from "@/app/ui/pos/icons";
-import { removeOutletProduct, upsertOutletProduct } from "@/app/master-data/actions";
+import {
+  getOutletPricesForProductChannel,
+  removeOutletProduct,
+  upsertOutletProduct,
+} from "@/app/master-data/actions";
 import type { OutletPriceRow } from "@/lib/products";
+import { PRICING_CHANNELS, type PricingChannel } from "@/lib/pricing-channel";
 import { useI18n } from "@/app/i18n-provider";
+import type { TranslateFn } from "@/lib/i18n/translate";
+
+function channelLabels(t: TranslateFn): Record<PricingChannel, string> {
+  return {
+    DINE_IN: t("masterData.channelDineIn"),
+    TAKEAWAY: t("masterData.channelTakeaway"),
+    GRABFOOD: t("masterData.channelGrabfood"),
+  };
+}
 
 function OutletPriceRowEditor({
   productId,
+  channel,
   row,
 }: {
   productId: number;
+  channel: PricingChannel;
   row: OutletPriceRow;
 }) {
   const router = useRouter();
@@ -28,6 +44,7 @@ function OutletPriceRowEditor({
       const result = await upsertOutletProduct({
         outletId: row.outletId,
         productId,
+        channel,
         sellingPrice,
         taxRate: taxRatePercent / 100,
         isAvailable,
@@ -44,7 +61,7 @@ function OutletPriceRowEditor({
   function handleRemove() {
     setMessage(null);
     startTransition(async () => {
-      const result = await removeOutletProduct({ outletId: row.outletId, productId });
+      const result = await removeOutletProduct({ outletId: row.outletId, productId, channel });
       if (!result.ok) {
         setMessage(result.message ?? t("common.somethingWentWrong"));
         return;
@@ -127,6 +144,23 @@ export function OutletPricingModal({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const CHANNEL_LABEL = channelLabels(t);
+  const [channel, setChannel] = useState<PricingChannel>("DINE_IN");
+  const [rows, setRows] = useState<OutletPriceRow[]>(outletPrices);
+  const [isLoading, startLoading] = useTransition();
+
+  function handleChannelChange(next: PricingChannel) {
+    setChannel(next);
+    if (next === "DINE_IN") {
+      setRows(outletPrices);
+      return;
+    }
+    startLoading(async () => {
+      const fresh = await getOutletPricesForProductChannel(productId, next);
+      setRows(fresh);
+    });
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
@@ -147,12 +181,34 @@ export function OutletPricingModal({
 
         <p className="mt-3 text-xs text-gray-400">{t("masterData.setPricePerOutletHint")}</p>
 
+        <div className="mt-3 flex gap-1.5">
+          {PRICING_CHANNELS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => handleChannelChange(c)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                channel === c ? "bg-amber-700 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {CHANNEL_LABEL[c]}
+            </button>
+          ))}
+        </div>
+
         <div className="mt-4 max-h-[60vh] overflow-y-auto">
-          {outletPrices.length === 0 ? (
+          {isLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">{t("common.loading")}</p>
+          ) : rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-400">{t("masterData.noActiveOutlets")}</p>
           ) : (
-            outletPrices.map((row) => (
-              <OutletPriceRowEditor key={row.outletId} productId={productId} row={row} />
+            rows.map((row) => (
+              <OutletPriceRowEditor
+                key={`${channel}-${row.outletId}`}
+                productId={productId}
+                channel={channel}
+                row={row}
+              />
             ))
           )}
         </div>

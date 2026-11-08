@@ -26,7 +26,7 @@ export default async function ProductsPage() {
   const outletPricesByProduct: Record<number, OutletPriceRow[]> = {};
   await Promise.all(
     products.map(async (product) => {
-      outletPricesByProduct[product.id] = await getOutletPricesForProduct(product.id);
+      outletPricesByProduct[product.id] = await getOutletPricesForProduct(product.id, "DINE_IN");
     }),
   );
 

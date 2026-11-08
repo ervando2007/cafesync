@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { ChevronDownIcon } from "@/app/ui/icons";
 import { BellIcon, StoreIcon } from "@/app/ui/dashboard/icons";
 import type { OrderChannel } from "@/app/pos/actions";
@@ -29,6 +30,8 @@ export function PosHeader({
   tables,
   tableId,
   onTableChange,
+  onReleaseTable,
+  releasing,
   userName,
   userRole,
 }: {
@@ -40,10 +43,37 @@ export function PosHeader({
   tables: DiningTableOption[];
   tableId: number | null;
   onTableChange: (id: number | null) => void;
+  onReleaseTable: (id: number) => void;
+  releasing: boolean;
   userName: string;
   userRole: string;
 }) {
   const { t } = useI18n();
+  const [showOccupied, setShowOccupied] = useState(false);
+  const occupied = tables.filter((table) => table.status === "OCCUPIED");
+  const releaseRef = useRef<HTMLDivElement>(null);
+
+  // Close the "free table" popup when focus/clicks leave it, or on Escape.
+  useEffect(() => {
+    if (!showOccupied) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!releaseRef.current?.contains(e.target as Node)) setShowOccupied(false);
+    }
+    function onFocusIn(e: FocusEvent) {
+      if (!releaseRef.current?.contains(e.target as Node)) setShowOccupied(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setShowOccupied(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showOccupied]);
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
   const ORDER_TYPES = orderTypes(t);
 
@@ -114,6 +144,40 @@ export function PosHeader({
               </select>
               <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             </div>
+          </div>
+        )}
+
+        {orderType === "DINE_IN_STAFF" && (
+          <div ref={releaseRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setShowOccupied((v) => !v)}
+              disabled={occupied.length === 0}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("pos.releaseTableButton", { count: occupied.length })}
+            </button>
+            {showOccupied && occupied.length > 0 && (
+              <div className="absolute left-0 top-full z-30 mt-1 w-64 rounded-xl border border-gray-100 bg-white p-2 shadow-lg">
+                <p className="px-2 pb-1 text-[11px] text-gray-400">{t("pos.releaseTableHint")}</p>
+                {occupied.map((table) => (
+                  <div key={table.id} className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-gray-50">
+                    <span className="text-sm font-medium text-gray-800">{table.name}</span>
+                    <button
+                      type="button"
+                      disabled={releasing}
+                      onClick={() => {
+                        onReleaseTable(table.id);
+                        setShowOccupied(false);
+                      }}
+                      className="rounded-md bg-amber-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                    >
+                      {t("pos.releaseTable")}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

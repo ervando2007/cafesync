@@ -1,73 +1,36 @@
-import ExcelJS from "exceljs";
-import { auth } from "@/auth";
-import { hasOutletAccess } from "@/lib/auth-guard";
-import { getOutletsForUser } from "@/lib/pos";
-import { getBalanceSheetReport, type ReportGranularity } from "@/lib/reports";
+import { getBalanceSheet, resolveLedgerScope } from "@/lib/ledger";
+import { COMPANY_NAME, formatReportDate, isoDateOr, statementLabels, today } from "@/lib/report-labels";
+import { ACCOUNTING_REPORT_ROLES, authorizeExport } from "@/lib/report-route";
+import { applyBaseFont, newWorkbook, writeHeader, writeStatement, writeTitle, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
-
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-  const hasRole = session.user.roles.some((role) => ALLOWED_ROLES.includes(role));
-  if (!hasRole) {
-    return new Response("Forbidden", { status: 403 });
-  }
+  const session = await authorizeExport(ACCOUNTING_REPORT_ROLES);
+  if (session instanceof Response) return session;
 
   const url = new URL(request.url);
-  const outletId = Number(url.searchParams.get("outlet") ?? 0);
-  const from = url.searchParams.get("from") ?? "";
-  const to = url.searchParams.get("to") ?? "";
-  const view: ReportGranularity = url.searchParams.get("view") === "monthly" ? "monthly" : "daily";
+  const { t, locale } = await getT();
+  const scope = await resolveLedgerScope(session, url.searchParams.get("outlet") ?? undefined, t("reports.allOutlets"));
+  const asOf = isoDateOr(url.searchParams.get("to"), today());
+  const showZero = url.searchParams.get("zero") === "1";
 
-  if (!outletId || !from || !to) {
-    return new Response("Missing outlet/from/to", { status: 400 });
-  }
-  if (!(await hasOutletAccess(session, outletId))) {
-    return new Response("Forbidden", { status: 403 });
-  }
+  const statement = await getBalanceSheet(scope, asOf, statementLabels(t), showZero);
 
-  const outlets = await getOutletsForUser(session);
-  const outlet = outlets.find((o) => o.id === outletId);
-  if (!outlet) {
-    return new Response("Forbidden", { status: 403 });
-  }
+  const { workbook, sheet } = newWorkbook(t("nav.balanceSheetReport"));
+  sheet.columns = [{ width: 52 }, { width: 20 }];
+  writeTitle(
+    sheet,
+    [
+      `${t("reports.balanceSheetTitle")} ${COMPANY_NAME}`,
+      scope.label,
+      t("reports.asOfLabel", { date: formatReportDate(asOf, locale) }),
+    ],
+    2,
+  );
+  writeHeader(sheet, [t("reports.colAccountName"), t("reports.colYearToDate")]);
+  writeStatement(sheet, statement.rows);
+  applyBaseFont(sheet);
 
-  const { t } = await getT();
-  const rows = await getBalanceSheetReport(outletId, from, to, view);
-
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(t("nav.balanceSheetReport"));
-
-  sheet.columns = [
-    { header: t("reports.colPeriod"), key: "period", width: 18 },
-    { header: t("reports.colTotalAssets"), key: "totalAssets", width: 18 },
-    { header: t("reports.colTotalLiabilities"), key: "totalLiabilities", width: 18 },
-    { header: t("reports.colTotalEquity"), key: "totalEquity", width: 18 },
-    { header: t("reports.colBalanceCheck"), key: "balanceCheck", width: 18 },
-  ];
-  sheet.getRow(1).font = { bold: true };
-
-  for (const row of rows) {
-    sheet.addRow({
-      period: row.period,
-      totalAssets: row.totalAssets,
-      totalLiabilities: row.totalLiabilities,
-      totalEquity: row.totalEquity,
-      balanceCheck: row.balanceCheck,
-    });
-  }
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const filename = `balance-sheet-${outlet.code}-${view}-${from}_to_${to}.xlsx`;
-
-  return new Response(buffer, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
+  const outletCode = scope.outlets.find((o) => o.id === scope.selectedOutletId)?.code ?? "ALL";
+  return xlsxResponse(workbook, `neraca-${outletCode}-${asOf}.xlsx`);
 }

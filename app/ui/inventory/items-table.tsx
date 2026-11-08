@@ -8,12 +8,9 @@ import { ItemFormModal } from "@/app/ui/inventory/item-form-modal";
 import { CategoryManagerModal } from "@/app/ui/inventory/category-manager-modal";
 import { setStockItemStatus } from "@/app/inventory/actions";
 import type { CategoryOption, StockItemRow, StockStatus, UnitOption } from "@/lib/inventory";
+import type { AccountOption } from "@/lib/accounting";
 import { useI18n } from "@/app/i18n-provider";
 import type { TranslateFn } from "@/lib/i18n/translate";
-
-function formatRp(value: number) {
-  return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
-}
 
 function statusLabels(t: TranslateFn): Record<StockStatus, string> {
   return {
@@ -33,10 +30,12 @@ export function ItemsTable({
   items,
   units,
   categories,
+  expenseAccounts,
 }: {
   items: StockItemRow[];
   units: UnitOption[];
   categories: CategoryOption[];
+  expenseAccounts: AccountOption[];
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -135,10 +134,7 @@ export function ItemsTable({
               <th className="px-5 py-3 font-medium">{t("inventory.colItem")}</th>
               <th className="px-5 py-3 font-medium">{t("inventory.colCategory")}</th>
               <th className="px-5 py-3 font-medium">{t("inventory.colSku")}</th>
-              <th className="px-5 py-3 font-medium">{t("inventory.colUnit")}</th>
               <th className="px-5 py-3 font-medium">{t("inventory.colStockOnHand")}</th>
-              <th className="px-5 py-3 font-medium">{t("inventory.colUnitCostAvg")}</th>
-              <th className="px-5 py-3 font-medium">{t("inventory.colStockValue")}</th>
               <th className="px-5 py-3 font-medium">{t("inventory.colStatus")}</th>
               <th className="px-5 py-3 font-medium"></th>
             </tr>
@@ -146,7 +142,7 @@ export function ItemsTable({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-5 py-10 text-center text-sm text-gray-400">
+                <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">
                   {t("inventory.noItemsMatchFilters")}
                 </td>
               </tr>
@@ -161,12 +157,7 @@ export function ItemsTable({
                   <td className="px-5 py-3 font-medium text-gray-900">{item.name}</td>
                   <td className="px-5 py-3 text-gray-500">{item.categoryName}</td>
                   <td className="px-5 py-3 text-gray-500">{item.sku}</td>
-                  <td className="px-5 py-3 text-gray-500">{item.unitName}</td>
                   <td className="px-5 py-3 text-gray-700">{item.qtyOnHand}</td>
-                  <td className="px-5 py-3 text-gray-700">{formatRp(item.avgCost)}</td>
-                  <td className="px-5 py-3 font-medium text-gray-900">
-                    {formatRp(item.stockValue)}
-                  </td>
                   <td className="px-5 py-3">
                     {item.itemStatus === "INACTIVE" ? (
                       <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
@@ -213,6 +204,7 @@ export function ItemsTable({
           item={modalItem === "new" ? undefined : modalItem}
           units={units}
           categories={categories}
+          expenseAccounts={expenseAccounts}
           onClose={() => setModalItem(null)}
         />
       )}

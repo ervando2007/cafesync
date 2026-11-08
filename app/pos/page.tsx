@@ -1,6 +1,12 @@
 import { requireRole } from "@/lib/auth-guard";
 import { resolveDisplayIdentity } from "@/lib/role-labels";
-import { getDiningTables, getHeldOrders, getOutletsForUser, getPosCatalog } from "@/lib/pos";
+import {
+  getDiningTables,
+  getHeldOrders,
+  getOutletsForUser,
+  getPosCatalog,
+  PRICING_CHANNELS,
+} from "@/lib/pos";
 import { PosTerminal, type OutletBundle } from "@/app/ui/pos/pos-terminal";
 
 export default async function PosPage() {
@@ -11,12 +17,15 @@ export default async function PosPage() {
 
   await Promise.all(
     outlets.map(async (outlet) => {
-      const [catalog, tables, heldOrders] = await Promise.all([
-        getPosCatalog(outlet.id),
+      const [catalogsByChannel, tables, heldOrders] = await Promise.all([
+        Promise.all(PRICING_CHANNELS.map((channel) => getPosCatalog(outlet.id, channel))),
         getDiningTables(outlet.id),
         getHeldOrders(outlet.id),
       ]);
-      outletData[outlet.id] = { catalog, tables, heldOrders };
+      const catalogByChannel = Object.fromEntries(
+        PRICING_CHANNELS.map((channel, i) => [channel, catalogsByChannel[i]]),
+      ) as OutletBundle["catalogByChannel"];
+      outletData[outlet.id] = { catalogByChannel, tables, heldOrders };
     }),
   );
 

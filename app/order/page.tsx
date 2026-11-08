@@ -1,6 +1,10 @@
 import { getActiveOutlets, getMenuCatalog, getTablesForOutlet } from "@/lib/customer-menu";
 import { CustomerMenu, type OutletBundle } from "@/app/ui/order/customer-menu";
 
+// Customer self-ordering only ever needs these two price lists (never GRABFOOD —
+// that's a delivery-platform order, not something placed through this page).
+const CUSTOMER_CHANNELS = ["DINE_IN", "TAKEAWAY"] as const;
+
 export default async function OrderPage({
   searchParams,
 }: {
@@ -12,11 +16,14 @@ export default async function OrderPage({
   const outletData: Record<number, OutletBundle> = {};
   await Promise.all(
     outlets.map(async (outlet) => {
-      const [catalog, tables] = await Promise.all([
-        getMenuCatalog(outlet.id),
+      const [catalogsByChannel, tables] = await Promise.all([
+        Promise.all(CUSTOMER_CHANNELS.map((channel) => getMenuCatalog(outlet.id, channel))),
         getTablesForOutlet(outlet.id),
       ]);
-      outletData[outlet.id] = { catalog, tables };
+      const catalogByChannel = Object.fromEntries(
+        CUSTOMER_CHANNELS.map((channel, i) => [channel, catalogsByChannel[i]]),
+      ) as OutletBundle["catalogByChannel"];
+      outletData[outlet.id] = { catalogByChannel, tables };
     }),
   );
 

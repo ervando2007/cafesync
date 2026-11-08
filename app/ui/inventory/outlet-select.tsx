@@ -9,10 +9,13 @@ export function OutletSelect({
   outlets,
   selectedOutletId,
   paramName = "outlet",
+  allLabel,
 }: {
   outlets: OutletOption[];
   selectedOutletId: number;
   paramName?: string;
+  /** When set, adds an "all outlets" option (value 0) at the top. */
+  allLabel?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,6 +35,7 @@ export function OutletSelect({
         onChange={(e) => handleChange(e.target.value)}
         className="appearance-none rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-8 text-sm font-semibold text-gray-900 focus:border-amber-500 focus:outline-none"
       >
+        {allLabel && <option value={0}>{allLabel}</option>}
         {outlets.map((outlet) => (
           <option key={outlet.id} value={outlet.id}>
             {outlet.name}

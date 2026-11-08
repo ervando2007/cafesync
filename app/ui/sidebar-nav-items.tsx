@@ -21,12 +21,7 @@ function navItemsByMenuKey(t: TranslateFn): { key: string; item: SidebarNavItem 
         icon: BoxIcon,
         children: [
           { label: t("nav.items"), href: "/inventory/items" },
-          { label: t("nav.stockIn"), href: "/inventory/stock-in" },
-          { label: t("nav.stockOut"), href: "/inventory/stock-out" },
-          { label: t("nav.adjustments"), href: "/inventory/adjustments" },
-          { label: t("nav.transfers"), href: "/inventory/transfers" },
           { label: t("nav.recipe"), href: "/inventory/recipe" },
-          { label: t("nav.hpp"), href: "/inventory/hpp" },
         ],
       },
     },
@@ -38,6 +33,7 @@ function navItemsByMenuKey(t: TranslateFn): { key: string; item: SidebarNavItem 
         children: [
           { label: t("nav.outlets"), href: "/master-data/outlets" },
           { label: t("nav.products"), href: "/master-data/products" },
+          { label: t("nav.chartOfAccounts"), href: "/master-data/coa" },
         ],
       },
     },
@@ -46,12 +42,7 @@ function navItemsByMenuKey(t: TranslateFn): { key: string; item: SidebarNavItem 
       item: {
         label: t("nav.accounting"),
         icon: CalculatorIcon,
-        children: [
-          { label: t("nav.journalEntries"), href: "/accounting/journal" },
-          { label: t("nav.cashTransactions"), href: "/accounting/cash" },
-          { label: t("nav.profitLoss"), href: "/accounting/profit-loss" },
-          { label: t("nav.cashFlow"), href: "/accounting/cash-flow" },
-        ],
+        children: [{ label: t("nav.journalEntries"), href: "/accounting/journal" }],
       },
     },
     {
@@ -66,6 +57,9 @@ function navItemsByMenuKey(t: TranslateFn): { key: string; item: SidebarNavItem 
           { label: t("nav.cashReport"), href: "/reports/cash" },
           { label: t("nav.bankReport"), href: "/reports/bank" },
           { label: t("nav.balanceSheetReport"), href: "/reports/balance-sheet" },
+          { label: t("nav.generalLedger"), href: "/reports/general-ledger" },
+          { label: t("nav.ledgerSummary"), href: "/reports/ledger-summary" },
+          { label: t("nav.masterMenu"), href: "/reports/master-menu" },
         ],
       },
     },

@@ -41,6 +41,12 @@ export function RecipeFormModal({
           qty: i.qty,
           unitId: i.unitId,
           unitName: i.unitName,
+          toStock: i.toStock,
+          stockUnitName: i.stockUnitName,
+          // An inactive stock item isn't in availableItems: keep just its current unit.
+          recipeUnits: availableItems.find((s) => s.stockItemId === i.stockItemId)?.recipeUnits ?? [
+            { unitId: i.unitId, code: "", name: i.unitName, toStock: i.toStock },
+          ],
           avgCost: i.avgCost,
         }))
       : [],

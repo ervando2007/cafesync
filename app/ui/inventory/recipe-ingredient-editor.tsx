@@ -2,18 +2,28 @@
 
 import { useState } from "react";
 import { PlusIcon, SearchIcon, TrashIcon } from "@/app/ui/pos/icons";
-import type { StockItemOption } from "@/lib/inventory";
+import type { RecipeUnitOption, StockItemOption } from "@/lib/inventory";
 import type { RecipeItemInput } from "@/app/inventory/recipe-actions";
 import { useI18n } from "@/app/i18n-provider";
 
 export interface IngredientLine extends RecipeItemInput {
   stockItemName: string;
   unitName: string;
+  /** Multiplier turning `qty` (in unitId) into stock units. */
+  toStock: number;
+  /** Stock unit name — what avgCost is priced per. */
+  stockUnitName: string;
+  /** Units this line may switch to. */
+  recipeUnits: RecipeUnitOption[];
   avgCost: number;
 }
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
+}
+
+function formatQty(value: number) {
+  return value.toLocaleString("id-ID", { maximumFractionDigits: 6 });
 }
 
 export function RecipeIngredientEditor({
@@ -44,6 +54,9 @@ export function RecipeIngredientEditor({
         qty: 0,
         unitId: item.unitId,
         unitName: item.unitName,
+        toStock: 1,
+        stockUnitName: item.unitName,
+        recipeUnits: item.recipeUnits,
         avgCost: item.avgCost,
       },
     ]);
@@ -55,11 +68,21 @@ export function RecipeIngredientEditor({
     onChange(lines.map((l) => (l.stockItemId === stockItemId ? { ...l, qty } : l)));
   }
 
+  function updateUnit(stockItemId: number, unitId: number) {
+    onChange(
+      lines.map((l) => {
+        if (l.stockItemId !== stockItemId) return l;
+        const unit = l.recipeUnits.find((u) => u.unitId === unitId);
+        return unit ? { ...l, unitId: unit.unitId, unitName: unit.name, toStock: unit.toStock } : l;
+      }),
+    );
+  }
+
   function removeLine(stockItemId: number) {
     onChange(lines.filter((l) => l.stockItemId !== stockItemId));
   }
 
-  const totalCost = lines.reduce((sum, l) => sum + l.qty * l.avgCost, 0);
+  const totalCost = lines.reduce((sum, l) => sum + l.qty * l.toStock * l.avgCost, 0);
 
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -142,10 +165,34 @@ export function RecipeIngredientEditor({
                       className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-right focus:border-amber-500 focus:outline-none"
                     />
                   </td>
-                  <td className="py-2.5 text-gray-500">{line.unitName}</td>
-                  <td className="py-2.5 text-gray-500">{formatRp(line.avgCost)}</td>
+                  <td className="py-2.5">
+                    {line.recipeUnits.length > 1 ? (
+                      <select
+                        value={line.unitId}
+                        onChange={(e) => updateUnit(line.stockItemId, Number(e.target.value))}
+                        className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
+                      >
+                        {line.recipeUnits.map((u) => (
+                          <option key={u.unitId} value={u.unitId}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-gray-500">{line.unitName}</span>
+                    )}
+                    {line.toStock !== 1 && line.qty > 0 && (
+                      <p className="mt-1 text-[11px] text-gray-400">
+                        = {formatQty(line.qty * line.toStock)} {line.stockUnitName}
+                      </p>
+                    )}
+                  </td>
+                  <td className="py-2.5 text-gray-500">
+                    {formatRp(line.avgCost)}
+                    <span className="text-xs text-gray-400">/{line.stockUnitName}</span>
+                  </td>
                   <td className="py-2.5 font-medium text-gray-900">
-                    {formatRp(line.qty * line.avgCost)}
+                    {formatRp(line.qty * line.toStock * line.avgCost)}
                   </td>
                   <td className="py-2.5 text-right">
                     <button

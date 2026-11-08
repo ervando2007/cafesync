@@ -1,6 +1,7 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
+import { getProductAvailability } from "@/lib/product-availability";
 
 export interface PublicOutlet {
   id: number;
@@ -28,7 +29,9 @@ export interface MenuItem {
   popularityScore: number;
 }
 
-export async function getMenuCatalog(outletId: number): Promise<MenuItem[]> {
+/** Customer-facing menu. Products whose ingredients are out of stock are hidden entirely. */
+export async function getMenuCatalog(outletId: number, channel: string): Promise<MenuItem[]> {
+  const availability = await getProductAvailability(outletId);
   const [rows] = await pool.query<(MenuItem & RowDataPacket)[]>(
     `SELECT p.id AS productId, p.name, p.description, p.image_url AS imageUrl, c.name AS categoryName,
             p.product_type AS productType, op.selling_price AS sellingPrice, op.tax_rate AS taxRate,
@@ -43,16 +46,19 @@ export async function getMenuCatalog(outletId: number): Promise<MenuItem[]> {
        WHERE o.status = 'PAID'
        GROUP BY oi.product_id
      ) pop ON pop.product_id = p.id
-     WHERE op.outlet_id = ? AND op.is_available = 1 AND p.status = 'ACTIVE'
+     WHERE op.outlet_id = ? AND op.channel = ? AND op.is_available = 1 AND p.status = 'ACTIVE'
      ORDER BY c.name, p.name`,
-    [outletId],
+    [outletId, channel],
   );
-  return rows.map((r) => ({
-    ...r,
-    sellingPrice: Number(r.sellingPrice),
-    taxRate: Number(r.taxRate),
-    popularityScore: Number(r.popularityScore),
-  }));
+  return rows
+    // Absent from the map = no active recipe = no stock → hidden too.
+    .filter((r) => (availability.get(Number(r.productId))?.status ?? "OUT") !== "OUT")
+    .map((r) => ({
+      ...r,
+      sellingPrice: Number(r.sellingPrice),
+      taxRate: Number(r.taxRate),
+      popularityScore: Number(r.popularityScore),
+    }));
 }
 
 export interface PublicTable {

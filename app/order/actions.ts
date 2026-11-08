@@ -5,7 +5,9 @@ import pool from "@/lib/db";
 import { auth } from "@/auth";
 import { nextOrderNo } from "@/lib/order-no";
 import { getOrderByNo, type TrackedOrder } from "@/lib/customer-menu";
+import { pricingChannelFor } from "@/lib/pricing-channel";
 import { getT } from "@/lib/i18n/server";
+import { findShortIngredients } from "@/lib/product-availability";
 
 export type CustomerOrderType = "DINE_IN_QR" | "TAKEAWAY";
 
@@ -81,9 +83,9 @@ export async function placeOrder(
     const [productRows] = await conn.query<RowDataPacket[]>(
       `SELECT op.product_id, op.selling_price, op.tax_rate
        FROM outlet_products op
-       WHERE op.outlet_id = ? AND op.is_available = 1
+       WHERE op.outlet_id = ? AND op.channel = ? AND op.is_available = 1
          AND op.product_id IN (${input.items.map(() => "?").join(",") || "NULL"})`,
-      [input.outletId, ...input.items.map((i) => i.productId)],
+      [input.outletId, pricingChannelFor(input.orderType), ...input.items.map((i) => i.productId)],
     );
     const priceMap = new Map(
       productRows.map((r) => [
@@ -118,6 +120,12 @@ export async function placeOrder(
         lineTotal,
         notes: item.notes?.trim() || null,
       });
+    }
+
+    const blocked = await findShortIngredients(conn, input.outletId, lines);
+    if (blocked.ingredients.length > 0 || blocked.noRecipeProductIds.length > 0) {
+      await conn.rollback();
+      return { ok: false, message: t("order.errItemsOutOfStock") };
     }
 
     const grandTotal = subtotal + taxTotal;

@@ -52,6 +52,10 @@ export function ReceiptModal({
               <span>{t("pos.tax")}</span>
               <span>{formatRp(order.taxTotal)}</span>
             </div>
+            <div className="flex justify-between text-gray-500">
+              <span>{t("pos.serviceCharge")}</span>
+              <span>{formatRp(order.serviceChargeTotal)}</span>
+            </div>
             <div className="flex justify-between border-t border-dashed border-gray-200 pt-2 text-base font-bold text-gray-900">
               <span>{t("pos.total")}</span>
               <span className="text-amber-700">{formatRp(order.grandTotal)}</span>

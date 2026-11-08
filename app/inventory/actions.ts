@@ -1,149 +1,17 @@
 "use server";
 
 import type { RowDataPacket } from "mysql2";
-import type { PoolConnection } from "mysql2/promise";
 import pool from "@/lib/db";
 import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
 import { getT } from "@/lib/i18n/server";
 import type { TranslateFn } from "@/lib/i18n/translate";
+import { getOrLockStock, insertMovement, upsertStock, validStockItemIds } from "@/lib/inventory-mutations";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER"];
 
 export interface ActionResult {
   ok: boolean;
   message?: string;
-}
-
-interface StockRow {
-  qty_on_hand: string | number;
-  avg_cost: string | number;
-}
-
-async function getOrLockStock(
-  conn: PoolConnection,
-  outletId: number,
-  stockItemId: number,
-): Promise<{ qtyOnHand: number; avgCost: number } | null> {
-  const [rows] = await conn.query<(RowDataPacket & StockRow)[]>(
-    "SELECT qty_on_hand, avg_cost FROM inventory_stocks WHERE outlet_id = ? AND stock_item_id = ? FOR UPDATE",
-    [outletId, stockItemId],
-  );
-  if (!rows.length) return null;
-  return { qtyOnHand: Number(rows[0].qty_on_hand), avgCost: Number(rows[0].avg_cost) };
-}
-
-async function upsertStock(
-  conn: PoolConnection,
-  outletId: number,
-  stockItemId: number,
-  qtyOnHand: number,
-  avgCost: number,
-): Promise<void> {
-  await conn.query(
-    `INSERT INTO inventory_stocks (outlet_id, stock_item_id, qty_on_hand, avg_cost)
-     VALUES (?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE qty_on_hand = VALUES(qty_on_hand), avg_cost = VALUES(avg_cost)`,
-    [outletId, stockItemId, qtyOnHand, avgCost],
-  );
-}
-
-async function insertMovement(
-  conn: PoolConnection,
-  params: {
-    outletId: number;
-    stockItemId: number;
-    movementType: string;
-    qty: number;
-    unitCost: number;
-    referenceType: string;
-    createdBy: number;
-  },
-): Promise<void> {
-  await conn.query(
-    `INSERT INTO inventory_movements
-       (outlet_id, stock_item_id, movement_type, qty, unit_cost, reference_type, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      params.outletId,
-      params.stockItemId,
-      params.movementType,
-      params.qty,
-      params.unitCost,
-      params.referenceType,
-      params.createdBy,
-    ],
-  );
-}
-
-async function validStockItemIds(conn: PoolConnection, ids: number[]): Promise<Set<number>> {
-  if (!ids.length) return new Set();
-  const [rows] = await conn.query<RowDataPacket[]>(
-    `SELECT id FROM stock_items WHERE status = 'ACTIVE' AND id IN (${ids.map(() => "?").join(",")})`,
-    ids,
-  );
-  return new Set(rows.map((r: RowDataPacket) => Number(r.id)));
-}
-
-// ── Stock In ─────────────────────────────────────────────────────────────
-
-export interface StockInLine {
-  stockItemId: number;
-  qty: number;
-  unitCost: number;
-}
-
-export async function stockIn(input: {
-  outletId: number;
-  supplierId: number | null;
-  notes: string;
-  items: StockInLine[];
-}): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
-  const { t } = await getT();
-  if (!(await hasOutletAccess(session, input.outletId))) {
-    return { ok: false, message: t("inventory.errNoOutletAccess") };
-  }
-  if (!input.items.length) return { ok: false, message: t("inventory.addAtLeastOneItemPeriod") };
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-
-    const valid = await validStockItemIds(conn, input.items.map((i) => i.stockItemId));
-
-    for (const line of input.items) {
-      if (!valid.has(line.stockItemId) || line.qty <= 0 || line.unitCost < 0) {
-        await conn.rollback();
-        return { ok: false, message: t("inventory.errItemsInvalid") };
-      }
-
-      const existing = await getOrLockStock(conn, input.outletId, line.stockItemId);
-      const oldQty = existing?.qtyOnHand ?? 0;
-      const oldAvg = existing?.avgCost ?? 0;
-      const newQty = oldQty + line.qty;
-      const newAvg = newQty > 0 ? (oldQty * oldAvg + line.qty * line.unitCost) / newQty : line.unitCost;
-
-      await upsertStock(conn, input.outletId, line.stockItemId, newQty, newAvg);
-      await insertMovement(conn, {
-        outletId: input.outletId,
-        stockItemId: line.stockItemId,
-        movementType: "PURCHASE_IN",
-        qty: line.qty,
-        unitCost: line.unitCost,
-        referenceType: input.supplierId ? `SUPPLIER:${input.supplierId}` : "STOCK_IN",
-        createdBy: Number(session.user.id),
-      });
-    }
-
-    await conn.commit();
-    return { ok: true };
-  } catch (error) {
-    await conn.rollback();
-    console.error("stockIn failed", error);
-    return { ok: false, message: t("inventory.errCouldNotSaveStockIn") };
-  } finally {
-    conn.release();
-  }
 }
 
 // ── Stock Out ────────────────────────────────────────────────────────────
@@ -377,16 +245,16 @@ export async function transfer(input: {
 // ── Item Master Data ────────────────────────────────────────────────────
 
 interface StockItemInput {
-  sku: string;
-  name: string;
+  accountId: number;
   unitId: number;
   categoryId: number;
   reorderLevel: number;
 }
 
 function validateStockItemInput(input: StockItemInput, t: TranslateFn): string | null {
-  if (!input.sku.trim()) return t("inventory.errSkuRequired");
-  if (!input.name.trim()) return t("inventory.errNameRequired");
+  if (!Number.isFinite(input.accountId) || input.accountId <= 0) {
+    return t("inventory.errAccountRequired");
+  }
   if (!Number.isFinite(input.categoryId) || input.categoryId <= 0) {
     return t("inventory.errCategoryRequired");
   }
@@ -395,6 +263,18 @@ function validateStockItemInput(input: StockItemInput, t: TranslateFn): string |
     return t("inventory.errReorderLevelNegative");
   }
   return null;
+}
+
+/** The item's name is derived from its linked COA account, never taken as free text from the client. */
+async function resolveExpenseAccountName(
+  conn: import("mysql2/promise").PoolConnection,
+  accountId: number,
+): Promise<string | null> {
+  const [rows] = await conn.query<RowDataPacket[]>(
+    "SELECT name FROM accounts WHERE id = ? AND account_type = 'EXPENSE' AND status = 'ACTIVE'",
+    [accountId],
+  );
+  return rows.length ? String(rows[0].name) : null;
 }
 
 function isDuplicateSkuError(error: unknown): boolean {
@@ -425,13 +305,27 @@ export async function createStockItem(input: StockItemInput): Promise<ActionResu
     );
     if (!categories.length) return { ok: false, message: t("inventory.errCategoryNotFound") };
 
-    await conn.query(
-      `INSERT INTO stock_items (sku, name, unit_id, category_id, reorder_level, status)
-       VALUES (?, ?, ?, ?, ?, 'ACTIVE')`,
-      [input.sku.trim(), input.name.trim(), input.unitId, input.categoryId, input.reorderLevel],
+    const accountName = await resolveExpenseAccountName(conn, input.accountId);
+    if (!accountName) return { ok: false, message: t("inventory.errAccountNotFound") };
+
+    // SKU is auto-generated from the row's own auto-increment id (never user
+    // input), so it's guaranteed unique without needing a retry-on-collision
+    // loop. Insert with a placeholder first, then rewrite it once the real id
+    // is known — wrapped in a transaction so the placeholder is never visible
+    // outside this request.
+    await conn.beginTransaction();
+    const [insertResult] = await conn.query(
+      `INSERT INTO stock_items (sku, name, unit_id, category_id, account_id, reorder_level, status)
+       VALUES (CONCAT('TEMP-', UUID()), ?, ?, ?, ?, ?, 'ACTIVE')`,
+      [accountName, input.unitId, input.categoryId, input.accountId, input.reorderLevel],
     );
+    const newId = (insertResult as { insertId: number }).insertId;
+    const sku = `ITM-${String(newId).padStart(5, "0")}`;
+    await conn.query("UPDATE stock_items SET sku = ? WHERE id = ?", [sku, newId]);
+    await conn.commit();
     return { ok: true };
   } catch (error) {
+    await conn.rollback();
     if (isDuplicateSkuError(error)) {
       return { ok: false, message: t("inventory.errSkuExists") };
     }
@@ -463,17 +357,13 @@ export async function updateStockItem(
     );
     if (!categories.length) return { ok: false, message: t("inventory.errCategoryNotFound") };
 
+    const accountName = await resolveExpenseAccountName(conn, input.accountId);
+    if (!accountName) return { ok: false, message: t("inventory.errAccountNotFound") };
+
     const [result] = await conn.query(
-      `UPDATE stock_items SET sku = ?, name = ?, unit_id = ?, category_id = ?, reorder_level = ?
+      `UPDATE stock_items SET name = ?, unit_id = ?, category_id = ?, account_id = ?, reorder_level = ?
        WHERE id = ?`,
-      [
-        input.sku.trim(),
-        input.name.trim(),
-        input.unitId,
-        input.categoryId,
-        input.reorderLevel,
-        input.id,
-      ],
+      [accountName, input.unitId, input.categoryId, input.accountId, input.reorderLevel, input.id],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       return { ok: false, message: t("inventory.errItemNotFound") };

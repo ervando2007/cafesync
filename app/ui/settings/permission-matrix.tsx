@@ -7,13 +7,14 @@ import type { MenuItemRecord, PermissionPair, RoleRecord } from "@/lib/menu-perm
 import { useI18n } from "@/app/i18n-provider";
 import type { TranslateFn } from "@/lib/i18n/translate";
 
-const MENU_KEY_TO_NAV_KEY: Record<string, "nav.dashboard" | "nav.pos" | "nav.inventory" | "nav.masterData" | "nav.accounting" | "nav.settings"> = {
+const MENU_KEY_TO_NAV_KEY: Record<string, "nav.dashboard" | "nav.pos" | "nav.inventory" | "nav.masterData" | "nav.accounting" | "nav.settings" | "nav.reports"> = {
   dashboard: "nav.dashboard",
   pos: "nav.pos",
   inventory: "nav.inventory",
   master_data: "nav.masterData",
   accounting: "nav.accounting",
   settings: "nav.settings",
+  reports: "nav.reports",
 };
 
 function menuLabel(m: MenuItemRecord, t: TranslateFn): string {

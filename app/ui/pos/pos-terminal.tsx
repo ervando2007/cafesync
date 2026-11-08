@@ -7,9 +7,11 @@ import { ProductGrid } from "@/app/ui/pos/product-grid";
 import { CartPanel } from "@/app/ui/pos/cart-panel";
 import { ReceiptModal } from "@/app/ui/pos/receipt-modal";
 import {
-  cancelHeldOrder,
   loadHeldOrder,
+  refreshCatalog,
   refreshHeldOrders,
+  refreshTables,
+  releaseTable,
   submitOrder,
   type OrderChannel,
   type PaymentMethod,
@@ -21,9 +23,10 @@ import type {
   OrderDetail,
   OutletOption,
 } from "@/lib/pos";
+import { pricingChannelFor, type PricingChannel } from "@/lib/pricing-channel";
 
 export interface OutletBundle {
-  catalog: CatalogProduct[];
+  catalogByChannel: Record<PricingChannel, CatalogProduct[]>;
   tables: DiningTableOption[];
   heldOrders: HeldOrderSummary[];
 }
@@ -56,19 +59,28 @@ export function PosTerminal({
   const [tableId, setTableId] = useState<number | null>(null);
   const [guestName, setGuestName] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [discountInput, setDiscountInput] = useState("0");
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [holdOrderId, setHoldOrderId] = useState<number | null>(null);
   const [receipt, setReceipt] = useState<OrderDetail | null>(null);
   const [message, setMessage] = useState<{ type: "error" | "info"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const bundle = data[outletId] ?? { catalog: [], tables: [], heldOrders: [] };
+  const bundle = data[outletId] ?? {
+    catalogByChannel: { DINE_IN: [], TAKEAWAY: [], GRABFOOD: [] },
+    tables: [],
+    heldOrders: [],
+  };
+  const pricingChannel = pricingChannelFor(orderType);
+  const catalog = bundle.catalogByChannel[pricingChannel] ?? [];
 
+  // PB1 (11%) and service charge (3.5%) are flat rates on the gross subtotal —
+  // must match app/pos/actions.ts's PB1_RATE/SERVICE_CHARGE_RATE exactly.
   const subtotal = cart.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
-  const taxTotal = cart.reduce((sum, line) => sum + line.unitPrice * line.qty * line.taxRate, 0);
-  const discountTotal = Math.max(0, Math.min(Number(discountInput) || 0, subtotal));
-  const grandTotal = subtotal - discountTotal + taxTotal;
+  const discountTotal = subtotal * (discountPercent / 100);
+  const taxTotal = subtotal * 0.11;
+  const serviceChargeTotal = subtotal * 0.035;
+  const grandTotal = subtotal - discountTotal + serviceChargeTotal + taxTotal;
 
   function flash(type: "error" | "info", text: string) {
     setMessage({ type, text });
@@ -77,7 +89,7 @@ export function PosTerminal({
 
   function resetOrderState() {
     setCart([]);
-    setDiscountInput("0");
+    setDiscountPercent(0);
     setPaymentMethod(null);
     setHoldOrderId(null);
     setGuestName(null);
@@ -94,7 +106,23 @@ export function PosTerminal({
     if (type !== "DINE_IN_STAFF") setTableId(null);
   }
 
+  /** Rejects a qty the current stock can't make (null portionsLeft = no recipe, unlimited). */
+  function exceedsStock(productId: number, nextQty: number): boolean {
+    const product = catalog.find((p) => p.productId === productId);
+    if (!product || product.portionsLeft == null) return false;
+    if (nextQty <= product.portionsLeft) return false;
+    flash(
+      "error",
+      product.portionsLeft === 0
+        ? t("pos.productOutOfStock", { name: product.name })
+        : t("pos.onlyPortionsLeft", { name: product.name, count: product.portionsLeft }),
+    );
+    return true;
+  }
+
   function addToCart(product: CatalogProduct) {
+    const currentQty = cart.find((line) => line.productId === product.productId)?.qty ?? 0;
+    if (product.stockStatus === "OUT" || exceedsStock(product.productId, currentQty + 1)) return;
     setCart((prev) => {
       const existing = prev.find((line) => line.productId === product.productId);
       if (existing) {
@@ -118,6 +146,8 @@ export function PosTerminal({
   }
 
   function incrementLine(productId: number) {
+    const currentQty = cart.find((line) => line.productId === productId)?.qty ?? 0;
+    if (exceedsStock(productId, currentQty + 1)) return;
     setCart((prev) =>
       prev.map((line) => (line.productId === productId ? { ...line, qty: line.qty + 1 } : line)),
     );
@@ -136,11 +166,36 @@ export function PosTerminal({
   }
 
   async function refreshHeld() {
-    const held = await refreshHeldOrders(outletId);
-    setData((prev) => ({ ...prev, [outletId]: { ...prev[outletId], heldOrders: held } }));
+    const [held, catalogByChannel, tables] = await Promise.all([
+      refreshHeldOrders(outletId),
+      refreshCatalog(outletId),
+      refreshTables(outletId),
+    ]);
+    setData((prev) => ({
+      ...prev,
+      [outletId]: {
+        ...prev[outletId],
+        heldOrders: held,
+        catalogByChannel: catalogByChannel ?? prev[outletId].catalogByChannel,
+        tables: tables ?? prev[outletId].tables,
+      },
+    }));
   }
 
-  function doSubmit(mode: "hold" | "pay", clearAfter: boolean) {
+  function handleReleaseTable(id: number) {
+    startTransition(async () => {
+      const result = await releaseTable(outletId, id);
+      if (!result.ok) {
+        flash("error", result.message);
+        return;
+      }
+      setData((prev) => ({ ...prev, [outletId]: { ...prev[outletId], tables: result.tables } }));
+      const name = result.tables.find((tbl) => tbl.id === id)?.name ?? "";
+      flash("info", t("pos.tableReleased", { table: name }));
+    });
+  }
+
+  function doSubmit(mode: "hold" | "pay") {
     if (cart.length === 0) {
       flash("error", t("pos.addAtLeastOneItem"));
       return;
@@ -160,7 +215,7 @@ export function PosTerminal({
         tableId: orderType === "DINE_IN_STAFF" ? tableId : null,
         channel: orderType,
         items: cart.map((line) => ({ productId: line.productId, qty: line.qty })),
-        discountTotal,
+        discountPercent,
         mode,
         paymentMethod: mode === "pay" ? (paymentMethod ?? undefined) : undefined,
         holdOrderId: holdOrderId ?? undefined,
@@ -168,6 +223,9 @@ export function PosTerminal({
 
       if (!result.ok) {
         flash("error", result.message);
+        // A stock refusal means our badges are stale (another till sold the
+        // last portions) — pull fresh availability so the grid matches.
+        await refreshHeld();
         return;
       }
 
@@ -176,12 +234,9 @@ export function PosTerminal({
       if (mode === "pay") {
         setReceipt(result.order);
         resetOrderState();
-      } else if (clearAfter) {
+      } else {
         flash("info", t("pos.orderHeldAs", { orderNo: result.order.orderNo }));
         resetOrderState();
-      } else {
-        setHoldOrderId(result.order.id);
-        flash("info", t("pos.savedAs", { orderNo: result.order.orderNo }));
       }
     });
   }
@@ -193,8 +248,9 @@ export function PosTerminal({
         flash("error", t("pos.couldNotLoadOrder"));
         return;
       }
+      const heldCatalog = bundle.catalogByChannel[pricingChannelFor(order.channel)] ?? [];
       const lines: CartLine[] = order.items.map((item) => {
-        const product = bundle.catalog.find((p) => p.productId === item.productId);
+        const product = heldCatalog.find((p) => p.productId === item.productId);
         return {
           productId: item.productId,
           name: item.name,
@@ -206,7 +262,7 @@ export function PosTerminal({
         };
       });
       setCart(lines);
-      setDiscountInput(String(order.discountTotal));
+      setDiscountPercent(order.discountPercent ?? 0);
       setTableId(order.tableId);
       setGuestName(order.guestName);
       setOrderType(order.channel as OrderChannel);
@@ -221,16 +277,16 @@ export function PosTerminal({
     });
   }
 
-  function handleCancelHeld(orderId: number) {
-    startTransition(async () => {
-      const result = await cancelHeldOrder(orderId, outletId);
-      if (!result.ok) {
-        flash("error", t("pos.couldNotCancelOrder"));
-        return;
-      }
-      if (holdOrderId === orderId) resetOrderState();
-      await refreshHeld();
-    });
+  function handleOrderVoided() {
+    flash("info", t("pos.voidedOrder"));
+    resetOrderState();
+    refreshHeld();
+  }
+
+  function handleHeldOrderVoided(orderId: number) {
+    flash("info", t("pos.voidedOrder"));
+    if (holdOrderId === orderId) resetOrderState();
+    refreshHeld();
   }
 
   const orderLabel = holdOrderId
@@ -253,6 +309,8 @@ export function PosTerminal({
           tables={bundle.tables}
           tableId={tableId}
           onTableChange={setTableId}
+          onReleaseTable={handleReleaseTable}
+          releasing={isPending}
           userName={userName}
           userRole={userRole}
         />
@@ -268,29 +326,31 @@ export function PosTerminal({
         )}
 
         <div className="flex min-h-0 flex-1">
-          <ProductGrid catalog={bundle.catalog} onAddToCart={addToCart} />
+          <ProductGrid catalog={catalog} onAddToCart={addToCart} />
           <CartPanel
+            outletId={outletId}
+            holdOrderId={holdOrderId}
             orderLabel={orderLabel}
             cart={cart}
             onIncrement={incrementLine}
             onDecrement={decrementLine}
             onRemove={removeLine}
-            onClear={resetOrderState}
-            discountInput={discountInput}
-            onDiscountChange={setDiscountInput}
+            discountPercent={discountPercent}
+            onDiscountPercentChange={setDiscountPercent}
             subtotal={subtotal}
             discountTotal={discountTotal}
             taxTotal={taxTotal}
+            serviceChargeTotal={serviceChargeTotal}
             grandTotal={grandTotal}
             paymentMethod={paymentMethod}
             onPaymentMethodChange={setPaymentMethod}
             isSubmitting={isPending}
-            onSave={() => doSubmit("hold", false)}
-            onHold={() => doSubmit("hold", true)}
-            onPay={() => doSubmit("pay", true)}
+            onHold={() => doSubmit("hold")}
+            onPay={() => doSubmit("pay")}
+            onVoidCurrentOrder={handleOrderVoided}
+            onVoidHeldOrder={handleHeldOrderVoided}
             heldOrders={bundle.heldOrders}
             onResumeHeld={handleResumeHeld}
-            onCancelHeld={handleCancelHeld}
           />
         </div>
       </div>

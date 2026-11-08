@@ -1,96 +1,107 @@
-import ExcelJS from "exceljs";
-import { auth } from "@/auth";
-import { hasOutletAccess } from "@/lib/auth-guard";
-import { getOutletsForUser } from "@/lib/pos";
-import { getStockReport, type ReportGranularity } from "@/lib/reports";
+import { resolveLedgerScope } from "@/lib/ledger";
+import { getStockCategories, getStockReport, type StockLevel } from "@/lib/stock-report";
+import { COMPANY_NAME, firstDayOfMonth, isoDateOr, today } from "@/lib/report-labels";
+import { authorizeExport } from "@/lib/report-route";
+import { applyBaseFont, newWorkbook, RP_FORMAT, writeHeader, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "ACCOUNTING"];
+const LEVELS: StockLevel[] = ["OK", "LOW", "OUT"];
+const QTY_FORMAT = "#,##0.###;(#,##0.###);\"-\"";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const dmy = (iso: string) => iso.split("-").reverse().join("-");
 
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-  const hasRole = session.user.roles.some((role) => ALLOWED_ROLES.includes(role));
-  if (!hasRole) {
-    return new Response("Forbidden", { status: 403 });
-  }
+  const session = await authorizeExport(ALLOWED_ROLES);
+  if (session instanceof Response) return session;
 
   const url = new URL(request.url);
-  const outletId = Number(url.searchParams.get("outlet") ?? 0);
-  const from = url.searchParams.get("from") ?? "";
-  const to = url.searchParams.get("to") ?? "";
-  const view: ReportGranularity = url.searchParams.get("view") === "monthly" ? "monthly" : "daily";
-
-  if (!outletId || !from || !to) {
-    return new Response("Missing outlet/from/to", { status: 400 });
-  }
-  if (!(await hasOutletAccess(session, outletId))) {
-    return new Response("Forbidden", { status: 403 });
-  }
-
-  const outlets = await getOutletsForUser(session);
-  const outlet = outlets.find((o) => o.id === outletId);
-  if (!outlet) {
-    return new Response("Forbidden", { status: 403 });
-  }
-
   const { t } = await getT();
-  const rows = await getStockReport(outletId, `${from} 00:00:00`, `${to} 23:59:59`, view);
+  const scope = await resolveLedgerScope(session, url.searchParams.get("outlet") ?? undefined, t("reports.allOutlets"));
+  const from = isoDateOr(url.searchParams.get("from"), firstDayOfMonth());
+  const to = isoDateOr(url.searchParams.get("to"), today());
+  const categories = await getStockCategories();
+  const category = categories.find((c) => c.id === Number(url.searchParams.get("category"))) ?? null;
+  const level = LEVELS.find((l) => l === url.searchParams.get("level")) ?? null;
+  const all = await getStockReport(scope.outletIds, from, to, category?.id ?? null);
+  const items = level ? all.filter((i) => i.level === level) : all;
+  const levelLabel = (l: StockLevel) =>
+    l === "OK" ? t("reports.stockOk") : l === "LOW" ? t("reports.stockLow") : t("reports.stockOut");
 
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(t("nav.stockReport"));
+  const now = new Date();
+  const fileStamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const generated = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const title = t("reports.stockReportTitle");
 
+  const { workbook, sheet } = newWorkbook("Report");
   sheet.columns = [
-    { header: t("reports.colPeriod"), key: "period", width: 18 },
-    { header: t("reports.colMovements"), key: "movementCount", width: 12 },
-    { header: t("reports.colStockIn"), key: "stockInValue", width: 18 },
-    { header: t("reports.colStockOut"), key: "stockOutValue", width: 20 },
-    { header: t("reports.colNetAdjustment"), key: "netAdjustmentValue", width: 18 },
-    { header: t("reports.colNetStockChange"), key: "netStockChange", width: 22 },
+    { width: 12 }, { width: 30 }, { width: 16 }, { width: 11 },
+    { width: 11 }, { width: 14 }, { width: 12 }, { width: 15 }, { width: 12 }, { width: 13 }, { width: 13 },
   ];
-  sheet.getRow(1).font = { bold: true };
 
-  let totalMovements = 0;
-  let totalStockIn = 0;
-  let totalStockOut = 0;
-  let totalNetAdjustment = 0;
-  let totalNetChange = 0;
+  // Same header block as the Sales / Bank reports.
+  sheet.getCell("A1").value = title;
+  sheet.getCell("A1").font = { bold: true, size: 13 };
+  sheet.getCell("A2").value = COMPANY_NAME;
+  sheet.getCell("A2").font = { bold: true };
+  const meta: [string, string][] = [
+    [t("reports.hdrGenerated"), generated],
+    [t("reports.hdrPeriod"), `${dmy(from)} - ${dmy(to)}`],
+    [t("reports.hdrBranch"), scope.label],
+    [t("reports.hdrCategory"), category?.name ?? t("reports.allCategories")],
+    [t("reports.hdrStockStatus"), level ? levelLabel(level) : t("reports.allStockLevels")],
+    [t("reports.hdrGeneratedUsername"), session.user.name ?? session.user.email ?? ""],
+    [t("reports.hdrReportFileName"), `${title} - ${fileStamp}`],
+  ];
+  meta.forEach(([label, value], i) => {
+    sheet.getCell(4 + i, 1).value = label;
+    sheet.getCell(4 + i, 2).value = value;
+  });
+  while (sheet.rowCount < 4 + meta.length) sheet.addRow([]);
 
-  for (const row of rows) {
-    sheet.addRow({
-      period: row.period,
-      movementCount: row.movementCount,
-      stockInValue: row.stockInValue,
-      stockOutValue: row.stockOutValue,
-      netAdjustmentValue: row.netAdjustmentValue,
-      netStockChange: row.netStockChange,
-    });
-    totalMovements += row.movementCount;
-    totalStockIn += row.stockInValue;
-    totalStockOut += row.stockOutValue;
-    totalNetAdjustment += row.netAdjustmentValue;
-    totalNetChange += row.netStockChange;
+  // Two header rows: group names over the Qty (and opening Value) columns.
+  const qtyLabel = t("reports.colQty");
+  const groupRow = writeHeader(sheet, [
+    "", "", "", "",
+    t("reports.colOpeningStock"), "", t("reports.colPurchases"), t("reports.colUsage"),
+    t("reports.colRemainingStock"), "", "",
+  ]);
+  const fixedLabels = [t("reports.colSku"), t("reports.colIngredient"), t("reports.colCategory"), t("reports.colUnit")];
+  const headerRow = writeHeader(sheet, [
+    ...fixedLabels,
+    qtyLabel, t("reports.colValue"), qtyLabel, qtyLabel,
+    qtyLabel, t("reports.colReorderLevel"), t("reports.colStatus"),
+  ]);
+  const g = groupRow.number;
+  for (const [a, b] of [["E", "F"], ["I", "K"]]) {
+    sheet.mergeCells(`${a}${g}:${b}${g}`);
+    sheet.getCell(`${a}${g}`).alignment = { horizontal: "center", vertical: "middle" };
   }
-
-  const totalRow = sheet.addRow({
-    period: t("reports.totalRow"),
-    movementCount: totalMovements,
-    stockInValue: totalStockIn,
-    stockOutValue: totalStockOut,
-    netAdjustmentValue: totalNetAdjustment,
-    netStockChange: totalNetChange,
+  for (const c of ["G", "H"]) sheet.getCell(`${c}${g}`).alignment = { horizontal: "center", vertical: "middle" };
+  ["A", "B", "C", "D"].forEach((c, i) => {
+    sheet.mergeCells(`${c}${g}:${c}${headerRow.number}`);
+    sheet.getCell(`${c}${g}`).value = fixedLabels[i];
+    sheet.getCell(`${c}${g}`).alignment = { vertical: "middle" };
   });
-  totalRow.font = { bold: true };
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const filename = `stock-report-${outlet.code}-${view}-${from}_to_${to}.xlsx`;
+  for (const i of items) {
+    const row = sheet.addRow([
+      i.sku, i.name, i.category, i.unitName,
+      i.openingQty, i.openingValue, i.purchaseQty, i.usageQty,
+      i.closingQty, i.reorderLevel, levelLabel(i.level),
+    ]);
+    for (const c of [5, 7, 8, 9, 10]) row.getCell(c).numFmt = QTY_FORMAT;
+    row.getCell(6).numFmt = RP_FORMAT;
+  }
+  const total = sheet.addRow([
+    t("reports.totalRow"), "", "", "", null, items.reduce((s, i) => s + i.openingValue, 0), null, null, null, null, null,
+  ]);
+  total.font = { bold: true };
+  for (let c = 1; c <= 11; c++) total.getCell(c).border = { top: { style: "thin" } };
+  total.getCell(6).numFmt = RP_FORMAT;
+  applyBaseFont(sheet);
 
-  return new Response(buffer, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
+  const outletCode = scope.outlets.find((o) => o.id === scope.selectedOutletId)?.code ?? "ALL";
+  return xlsxResponse(workbook, `stock-report-${outletCode}-${from}_to_${to}-${fileStamp}.xlsx`);
 }

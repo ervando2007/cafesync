@@ -2,6 +2,13 @@ import "server-only";
 import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
 import type { Session } from "next-auth";
+import {
+  getProductAvailability,
+  NO_RECIPE_AVAILABILITY,
+  type ProductStockStatus,
+} from "@/lib/product-availability";
+
+export { PRICING_CHANNELS, pricingChannelFor, type PricingChannel } from "@/lib/pricing-channel";
 
 export interface OutletOption {
   id: number;
@@ -37,24 +44,45 @@ export interface CatalogProduct {
   imageUrl: string | null;
   sellingPrice: number;
   taxRate: number;
+  stockStatus: ProductStockStatus;
+  /** Whole portions current stock can make; null when the product has no recipe. */
+  portionsLeft: number | null;
+  /** Ingredients causing a LOW / OUT status. */
+  stockIngredients: string[];
+  /** OUT because the product has no active recipe at this outlet. */
+  noRecipe: boolean;
 }
 
-export async function getPosCatalog(outletId: number): Promise<CatalogProduct[]> {
-  const [rows] = await pool.query<(CatalogProduct & RowDataPacket)[]>(
-    `SELECT p.id AS productId, p.name, c.name AS categoryName, p.product_type AS productType,
-            p.image_url AS imageUrl, op.selling_price AS sellingPrice, op.tax_rate AS taxRate
-     FROM outlet_products op
-     JOIN products p ON p.id = op.product_id
-     LEFT JOIN categories c ON c.id = p.category_id
-     WHERE op.outlet_id = ? AND op.is_available = 1 AND p.status = 'ACTIVE'
-     ORDER BY c.name, p.name`,
-    [outletId],
-  );
-  return rows.map((r) => ({
-    ...r,
-    sellingPrice: Number(r.sellingPrice),
-    taxRate: Number(r.taxRate),
-  }));
+export async function getPosCatalog(outletId: number, channel: string): Promise<CatalogProduct[]> {
+  const [[rows], availability] = await Promise.all([
+    pool.query<RowDataPacket[]>(
+      `SELECT p.id AS productId, p.name, c.name AS categoryName, p.product_type AS productType,
+              p.image_url AS imageUrl, op.selling_price AS sellingPrice, op.tax_rate AS taxRate
+       FROM outlet_products op
+       JOIN products p ON p.id = op.product_id
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE op.outlet_id = ? AND op.channel = ? AND op.is_available = 1 AND p.status = 'ACTIVE'
+       ORDER BY c.name, p.name`,
+      [outletId, channel],
+    ),
+    getProductAvailability(outletId),
+  ]);
+  return rows.map((r) => {
+    const stock = availability.get(Number(r.productId)) ?? NO_RECIPE_AVAILABILITY;
+    return {
+      productId: Number(r.productId),
+      name: String(r.name),
+      categoryName: String(r.categoryName ?? ""),
+      productType: String(r.productType),
+      imageUrl: r.imageUrl === null ? null : String(r.imageUrl),
+      sellingPrice: Number(r.sellingPrice),
+      taxRate: Number(r.taxRate),
+      stockStatus: stock.status,
+      portionsLeft: stock.portionsLeft,
+      stockIngredients: stock.ingredients,
+      noRecipe: stock.noRecipe,
+    };
+  });
 }
 
 export interface DiningTableOption {
@@ -117,7 +145,9 @@ export interface OrderDetail {
   status: string;
   subtotal: number;
   discountTotal: number;
+  discountPercent: number | null;
   taxTotal: number;
+  serviceChargeTotal: number;
   grandTotal: number;
   items: OrderItemDetail[];
 }
@@ -125,7 +155,7 @@ export interface OrderDetail {
 export async function getOrderDetail(orderId: number): Promise<OrderDetail | null> {
   const [orderRows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
     `SELECT id, order_no, outlet_id, table_id, guest_name, order_channel, status,
-            subtotal, discount_total, tax_total, grand_total
+            subtotal, discount_total, discount_percent, tax_total, service_charge_total, grand_total
      FROM orders WHERE id = ? LIMIT 1`,
     [orderId],
   );
@@ -149,7 +179,9 @@ export async function getOrderDetail(orderId: number): Promise<OrderDetail | nul
     status: String(order.status),
     subtotal: Number(order.subtotal),
     discountTotal: Number(order.discount_total),
+    discountPercent: order.discount_percent === null ? null : Number(order.discount_percent),
     taxTotal: Number(order.tax_total),
+    serviceChargeTotal: Number(order.service_charge_total),
     grandTotal: Number(order.grand_total),
     items: itemRows.map((r) => ({
       productId: Number(r.product_id),

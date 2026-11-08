@@ -17,10 +17,13 @@ import {
 } from "@/app/ui/pos/icons";
 import { WalletIcon } from "@/app/ui/dashboard/icons";
 import type { PaymentMethod } from "@/app/pos/actions";
+import { VoidOrderModal } from "@/app/ui/pos/void-order-modal";
 import type { HeldOrderSummary } from "@/lib/pos";
 import type { CartLine } from "@/app/ui/pos/pos-terminal";
 import { useI18n } from "@/app/i18n-provider";
 import type { TranslateFn } from "@/lib/i18n/translate";
+
+const DISCOUNT_OPTIONS = [0, 2, 5, 10];
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -41,55 +44,59 @@ function paymentOptions(t: TranslateFn): { value: PaymentMethod; label: string; 
 }
 
 export function CartPanel({
+  outletId,
+  holdOrderId,
   orderLabel,
   cart,
   onIncrement,
   onDecrement,
   onRemove,
-  onClear,
-  discountInput,
-  onDiscountChange,
+  discountPercent,
+  onDiscountPercentChange,
   subtotal,
   discountTotal,
   taxTotal,
+  serviceChargeTotal,
   grandTotal,
   paymentMethod,
   onPaymentMethodChange,
   isSubmitting,
-  onSave,
   onHold,
   onPay,
+  onVoidCurrentOrder,
+  onVoidHeldOrder,
   heldOrders,
   onResumeHeld,
-  onCancelHeld,
 }: {
+  outletId: number;
+  holdOrderId: number | null;
   orderLabel: string;
   cart: CartLine[];
   onIncrement: (productId: number) => void;
   onDecrement: (productId: number) => void;
   onRemove: (productId: number) => void;
-  onClear: () => void;
-  discountInput: string;
-  onDiscountChange: (value: string) => void;
+  discountPercent: number;
+  onDiscountPercentChange: (percent: number) => void;
   subtotal: number;
   discountTotal: number;
   taxTotal: number;
+  serviceChargeTotal: number;
   grandTotal: number;
   paymentMethod: PaymentMethod | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   isSubmitting: boolean;
-  onSave: () => void;
   onHold: () => void;
   onPay: () => void;
+  onVoidCurrentOrder: () => void;
+  onVoidHeldOrder: (orderId: number) => void;
   heldOrders: HeldOrderSummary[];
   onResumeHeld: (orderId: number) => void;
-  onCancelHeld: (orderId: number) => void;
 }) {
   const { t } = useI18n();
   const PAYMENT_OPTIONS = paymentOptions(t);
   const [cashReceived, setCashReceived] = useState("");
   const [showHeld, setShowHeld] = useState(false);
-  const [showDiscount, setShowDiscount] = useState(false);
+  const [voidTarget, setVoidTarget] = useState<"current" | number | null>(null);
 
   function selectPaymentMethod(method: PaymentMethod) {
     setCashReceived("");
@@ -101,9 +108,6 @@ export function CartPanel({
       if (e.key === "F9") {
         e.preventDefault();
         onPay();
-      } else if (e.key === "F10") {
-        e.preventDefault();
-        onSave();
       } else if (e.key === "F11") {
         e.preventDefault();
         onHold();
@@ -111,7 +115,7 @@ export function CartPanel({
     }
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, [onPay, onSave, onHold]);
+  }, [onPay, onHold]);
 
   const received = Number(cashReceived) || 0;
   const change = received - grandTotal;
@@ -136,11 +140,11 @@ export function CartPanel({
         </div>
         <button
           type="button"
-          onClick={onClear}
+          onClick={() => setVoidTarget("current")}
           disabled={cart.length === 0}
           className="flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-40"
         >
-          {t("pos.clearOrder")}
+          {t("pos.voidOrder")}
           <TrashIcon className="h-4 w-4" />
         </button>
       </div>
@@ -177,7 +181,7 @@ export function CartPanel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onCancelHeld(order.id)}
+                      onClick={() => setVoidTarget(order.id)}
                       className="text-gray-400 hover:text-red-600"
                     >
                       <XIcon className="h-3.5 w-3.5" />
@@ -263,31 +267,38 @@ export function CartPanel({
           <span>{t("pos.subtotal")}</span>
           <span className="text-gray-900">{formatRp(subtotal)}</span>
         </div>
-        <div className="flex justify-between text-sm text-gray-500">
-          <span>
-            {t("pos.discount")}{" "}
-            <button
-              type="button"
-              onClick={() => setShowDiscount((v) => !v)}
-              className="ml-1 text-xs font-medium text-amber-700 hover:text-amber-800"
-            >
-              {showDiscount ? "" : t("pos.editLabel")}
-            </button>
-          </span>
-          {showDiscount ? (
-            <input
-              value={discountInput}
-              onChange={(e) => onDiscountChange(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="0"
-              className="w-28 rounded-md border border-gray-200 px-2 py-0.5 text-right text-sm focus:border-amber-500 focus:outline-none"
-            />
-          ) : (
-            <span className="text-gray-900">{formatRp(discountTotal)}</span>
-          )}
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>{t("pos.discount")}</span>
+          <div className="flex items-center gap-1">
+            {DISCOUNT_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onDiscountPercentChange(option)}
+                className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                  discountPercent === option
+                    ? "bg-amber-700 text-white"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                {option === 0 ? t("pos.discountNone") : `${option}%`}
+              </button>
+            ))}
+          </div>
         </div>
+        {discountTotal > 0 && (
+          <div className="flex justify-between text-sm text-gray-500">
+            <span />
+            <span className="text-red-600">-{formatRp(discountTotal)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-sm text-gray-500">
           <span>{t("pos.tax")}</span>
           <span className="text-gray-900">{formatRp(taxTotal)}</span>
+        </div>
+        <div className="flex justify-between text-sm text-gray-500">
+          <span>{t("pos.serviceCharge")}</span>
+          <span className="text-gray-900">{formatRp(serviceChargeTotal)}</span>
         </div>
         <div className="mt-2 flex items-baseline justify-between border-t border-gray-100 pt-2">
           <span className="text-base font-semibold text-gray-900">{t("pos.total")}</span>
@@ -295,7 +306,7 @@ export function CartPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 px-5">
+      <div className="grid grid-cols-2 gap-2 px-5">
         <button
           type="button"
           onClick={onPay}
@@ -304,15 +315,6 @@ export function CartPanel({
         >
           {t("pos.pay")}
           <span className="block text-[10px] font-normal text-amber-100">F9</span>
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={cart.length === 0 || isSubmitting}
-          className="rounded-xl border border-gray-200 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {t("pos.saveOrder")}
-          <span className="block text-[10px] font-normal text-gray-400">F10</span>
         </button>
         <button
           type="button"
@@ -379,6 +381,20 @@ export function CartPanel({
           );
         })}
       </div>
+
+      {voidTarget !== null && (
+        <VoidOrderModal
+          outletId={outletId}
+          orderId={voidTarget === "current" ? (holdOrderId ?? undefined) : voidTarget}
+          onClose={() => setVoidTarget(null)}
+          onVoided={() => {
+            const target = voidTarget;
+            setVoidTarget(null);
+            if (target === "current") onVoidCurrentOrder();
+            else onVoidHeldOrder(target);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ export default async function AccountingLayout({ children }: LayoutProps<"/accou
   const visibleMenuKeys = await getVisibleMenuKeyList(session);
 
   return (
-    <div className="flex min-h-screen bg-[#f7f5f2]">
+    <div className="flex min-h-screen bg-[#f7f5f2] print:bg-white">
       <div className="print:hidden">
         <AccountingSidebar
           userName={userName}

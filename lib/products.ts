@@ -27,7 +27,7 @@ export async function getProducts(): Promise<ProductRecord[]> {
             p.product_type AS productType,
             p.base_unit_id AS baseUnitId, u.name AS baseUnitName,
             p.status,
-            (SELECT COUNT(*) FROM outlet_products op WHERE op.product_id = p.id) AS outletCount
+            (SELECT COUNT(DISTINCT op.outlet_id) FROM outlet_products op WHERE op.product_id = p.id) AS outletCount
      FROM products p
      LEFT JOIN categories c ON c.id = p.category_id
      LEFT JOIN units u ON u.id = p.base_unit_id
@@ -75,15 +75,18 @@ export interface OutletPriceRow {
   isSet: boolean;
 }
 
-export async function getOutletPricesForProduct(productId: number): Promise<OutletPriceRow[]> {
+export async function getOutletPricesForProduct(
+  productId: number,
+  channel: string,
+): Promise<OutletPriceRow[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT o.id AS outletId, o.name AS outletName,
             op.selling_price AS sellingPrice, op.tax_rate AS taxRate, op.is_available AS isAvailable
      FROM outlets o
-     LEFT JOIN outlet_products op ON op.outlet_id = o.id AND op.product_id = ?
+     LEFT JOIN outlet_products op ON op.outlet_id = o.id AND op.product_id = ? AND op.channel = ?
      WHERE o.status = 'ACTIVE'
      ORDER BY o.name`,
-    [productId],
+    [productId, channel],
   );
   return rows.map((r) => ({
     outletId: Number(r.outletId),

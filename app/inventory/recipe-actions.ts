@@ -5,6 +5,8 @@ import pool from "@/lib/db";
 import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
 import { getT } from "@/lib/i18n/server";
 import type { TranslateFn } from "@/lib/i18n/translate";
+import { getConvertibleUnits } from "@/lib/inventory";
+import { toStockFactor } from "@/lib/unit-conversion";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER"];
 
@@ -40,6 +42,24 @@ function validateRecipeInput(input: RecipeInput, t: TranslateFn): string | null 
   const seen = new Set(input.items.map((i) => i.stockItemId));
   if (seen.size !== input.items.length) return t("inventory.errDuplicateIngredient");
   return null;
+}
+
+/** True when every line's unit converts to its stock item's unit (same unit, or same group). */
+async function unitsAreCompatible(
+  conn: import("mysql2/promise").PoolConnection,
+  items: RecipeItemInput[],
+): Promise<boolean> {
+  const units = new Map((await getConvertibleUnits()).map((u) => [u.id, u]));
+  const [rows] = await conn.query<RowDataPacket[]>(
+    "SELECT id, unit_id AS unitId FROM stock_items WHERE id IN (?)",
+    [items.map((i) => i.stockItemId)],
+  );
+  const stockUnitByItem = new Map(rows.map((r) => [Number(r.id), Number(r.unitId)]));
+  return items.every((item) => {
+    const from = units.get(item.unitId);
+    const stock = units.get(stockUnitByItem.get(item.stockItemId) ?? -1);
+    return !!from && !!stock && toStockFactor(from, stock) !== null;
+  });
 }
 
 async function replaceRecipeItems(
@@ -86,6 +106,10 @@ export async function createRecipe(input: RecipeInput): Promise<ActionResult> {
     );
     const recipeId = (result as { insertId: number }).insertId;
 
+    if (!(await unitsAreCompatible(conn, input.items))) {
+      await conn.rollback();
+      return { ok: false, message: t("inventory.errIncompatibleUnit") };
+    }
     await replaceRecipeItems(conn, recipeId, input.items);
 
     await conn.query("UPDATE outlet_products SET recipe_id = ? WHERE outlet_id = ? AND product_id = ?", [
@@ -134,6 +158,10 @@ export async function updateRecipe(
       return { ok: false, message: t("inventory.errRecipeNotFound") };
     }
 
+    if (!(await unitsAreCompatible(conn, input.items))) {
+      await conn.rollback();
+      return { ok: false, message: t("inventory.errIncompatibleUnit") };
+    }
     await replaceRecipeItems(conn, input.recipeId, input.items);
 
     await conn.commit();

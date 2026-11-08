@@ -1,6 +1,7 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
+import { SQL_TO_STOCK_FACTOR } from "@/lib/unit-conversion";
 
 export interface RecipeListRow {
   recipeId: number;
@@ -26,8 +27,12 @@ async function attachCosts(
 
   const recipeIds = rows.map((r) => Number(r.recipeId));
   const [costRows] = await pool.query<RowDataPacket[]>(
-    `SELECT ri.recipe_id AS recipeId, SUM(ri.qty * COALESCE(ist.avg_cost, 0)) AS totalCost
+    `SELECT ri.recipe_id AS recipeId,
+            SUM(ri.qty * ${SQL_TO_STOCK_FACTOR} * COALESCE(ist.avg_cost, 0)) AS totalCost
      FROM recipe_items ri
+     JOIN stock_items si ON si.id = ri.stock_item_id
+     JOIN units ru ON ru.id = ri.unit_id
+     JOIN units su ON su.id = si.unit_id
      LEFT JOIN inventory_stocks ist ON ist.stock_item_id = ri.stock_item_id AND ist.outlet_id = ?
      WHERE ri.recipe_id IN (${recipeIds.map(() => "?").join(",")})
      GROUP BY ri.recipe_id`,
@@ -71,7 +76,7 @@ export async function getRecipes(outletId: number): Promise<RecipeListRow[]> {
      FROM recipes r
      JOIN products p ON p.id = r.product_id
      LEFT JOIN categories c ON c.id = p.category_id
-     LEFT JOIN outlet_products op ON op.outlet_id = r.outlet_id AND op.product_id = r.product_id
+     LEFT JOIN outlet_products op ON op.outlet_id = r.outlet_id AND op.product_id = r.product_id AND op.channel = 'DINE_IN'
      WHERE r.outlet_id = ?
      ORDER BY p.name`,
     [outletId],
@@ -99,7 +104,7 @@ export async function getRecipeDetail(
      JOIN products p ON p.id = r.product_id
      LEFT JOIN categories c ON c.id = p.category_id
      LEFT JOIN users u ON u.id = r.updated_by
-     LEFT JOIN outlet_products op ON op.outlet_id = r.outlet_id AND op.product_id = r.product_id
+     LEFT JOIN outlet_products op ON op.outlet_id = r.outlet_id AND op.product_id = r.product_id AND op.channel = 'DINE_IN'
      WHERE r.outlet_id = ? AND r.id = ?
      LIMIT 1`,
     [outletId, recipeId],
@@ -118,9 +123,14 @@ export async function getRecipeDetail(
 export interface RecipeIngredientRow {
   stockItemId: number;
   stockItemName: string;
+  /** Quantity in the recipe line's own unit (unitId / unitName). */
   qty: number;
   unitId: number;
   unitName: string;
+  /** The stock item's unit, which avgCost is priced in. */
+  stockUnitName: string;
+  /** Multiplier turning `qty` into stock units. */
+  toStock: number;
   avgCost: number;
   lineCost: number;
 }
@@ -128,11 +138,13 @@ export interface RecipeIngredientRow {
 export async function getRecipeIngredients(recipeId: number): Promise<RecipeIngredientRow[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT ri.stock_item_id AS stockItemId, si.name AS stockItemName, ri.qty,
-            ri.unit_id AS unitId, u.name AS unitName,
+            ri.unit_id AS unitId, ru.name AS unitName, su.name AS stockUnitName,
+            ${SQL_TO_STOCK_FACTOR} AS toStock,
             COALESCE(ist.avg_cost, 0) AS avgCost
      FROM recipe_items ri
      JOIN stock_items si ON si.id = ri.stock_item_id
-     JOIN units u ON u.id = ri.unit_id
+     JOIN units ru ON ru.id = ri.unit_id
+     JOIN units su ON su.id = si.unit_id
      JOIN recipes r ON r.id = ri.recipe_id
      LEFT JOIN inventory_stocks ist ON ist.stock_item_id = ri.stock_item_id AND ist.outlet_id = r.outlet_id
      WHERE ri.recipe_id = ?
@@ -142,14 +154,17 @@ export async function getRecipeIngredients(recipeId: number): Promise<RecipeIngr
   return rows.map((r) => {
     const qty = Number(r.qty);
     const avgCost = Number(r.avgCost);
+    const toStock = Number(r.toStock);
     return {
       stockItemId: Number(r.stockItemId),
       stockItemName: String(r.stockItemName),
       qty,
       unitId: Number(r.unitId),
       unitName: String(r.unitName),
+      stockUnitName: String(r.stockUnitName),
+      toStock,
       avgCost,
-      lineCost: qty * avgCost,
+      lineCost: qty * toStock * avgCost,
     };
   });
 }
@@ -163,7 +178,7 @@ export interface RecipeableProduct {
 
 export async function getRecipeableProducts(outletId: number): Promise<RecipeableProduct[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT p.id AS productId, p.name, p.sku,
+    `SELECT DISTINCT p.id AS productId, p.name, p.sku,
             EXISTS(
               SELECT 1 FROM recipes r WHERE r.outlet_id = ? AND r.product_id = p.id
             ) AS hasRecipe

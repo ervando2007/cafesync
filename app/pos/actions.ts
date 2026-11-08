@@ -1,18 +1,43 @@
 "use server";
 
+import bcrypt from "bcryptjs";
 import pool from "@/lib/db";
 import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
-import { getHeldOrders, getOrderDetail, type HeldOrderSummary, type OrderDetail } from "@/lib/pos";
+import {
+  getDiningTables,
+  getHeldOrders,
+  getOrderDetail,
+  getPosCatalog,
+  PRICING_CHANNELS,
+  type CatalogProduct,
+  type DiningTableOption,
+  type HeldOrderSummary,
+  type OrderDetail,
+} from "@/lib/pos";
+import { pricingChannelFor } from "@/lib/pricing-channel";
 import { nextOrderNo } from "@/lib/order-no";
 import { nextJournalNo } from "@/lib/journal-no";
+import { findUserByEmail, findUserRoleCodes } from "@/lib/users";
 import { getT } from "@/lib/i18n/server";
+import { getOrLockStock, insertMovement, upsertStock } from "@/lib/inventory-mutations";
+import { loadActiveRecipeLines, productsWithoutRecipe } from "@/lib/product-availability";
+import type { PricingChannel } from "@/lib/pricing-channel";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "CASHIER"];
+const MANAGER_ROLES = ["ADMIN", "GM", "MANAGER"];
 // DINE_IN_QR isn't offered as a creation choice in the POS header (staff always pick
 // Dine In/Take Away/Delivery) — it's included so resuming a customer-placed QR order
-// (app/order/actions.ts) and re-submitting it (Save/Hold/Pay) doesn't fail validation.
+// (app/order/actions.ts) and re-submitting it (Hold/Pay) doesn't fail validation.
 const CHANNELS = ["DINE_IN_STAFF", "DINE_IN_QR", "TAKEAWAY", "DELIVERY"] as const;
 const PAYMENT_METHODS = ["CASH", "BANK_TRANSFER", "QRIS", "CARD", "OTHER"] as const;
+
+// PB1 (restaurant tax) and service charge are now flat outlet-wide rates applied
+// to the gross (bruto) subtotal, replacing the old per-product outlet_products.tax_rate
+// math. Discount is a fixed set of percentages rather than a free-typed Rupiah amount.
+const PB1_RATE = 0.11;
+const SERVICE_CHARGE_RATE = 0.035;
+const DISCOUNT_PERCENT_OPTIONS = [0, 2, 5, 10];
+const PB1_ACCOUNT_CODE = "2100.002"; // HUTANG PB1 — a real liability, not revenue.
 
 export type OrderChannel = (typeof CHANNELS)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -27,7 +52,7 @@ export interface SubmitOrderInput {
   tableId: number | null;
   channel: OrderChannel;
   items: CartItemInput[];
-  discountTotal: number;
+  discountPercent: number;
   mode: "hold" | "pay";
   paymentMethod?: PaymentMethod;
   holdOrderId?: number;
@@ -43,84 +68,124 @@ export interface SubmitOrderError {
   message: string;
 }
 
+/** Thrown inside the pay transaction when an ingredient can't cover the order. */
+class InsufficientStockError extends Error {
+  constructor(public readonly ingredients: string[]) {
+    super("INSUFFICIENT_STOCK");
+  }
+}
+
+interface ConsumptionResult {
+  hppTotal: number;
+  /** COGS per stock item's linked 5000.xxx account (null = item has no linked account). */
+  hppByAccount: Map<number | null, number>;
+}
+
 /**
  * Deducts each sold product's recipe ingredients from inventory and freezes
- * the resulting cost onto order_items.hpp_total. Products with no active
- * recipe configured are skipped (hpp_total stays 0) — not every sellable
- * item needs a recipe (e.g. merchandise). Stock is allowed to go negative
- * here: blocking a paid sale over an inventory data gap would be worse than
- * a reconciliation discrepancy an ADMIN/MANAGER can fix via Adjustments.
+ * the resulting cost onto order_items.hpp_total. A product with no active
+ * recipe has no stock and is refused like any other shortfall.
+ *
+ * Stock may NOT go negative: every ingredient row is locked first (in id
+ * order, so two tills can't deadlock), the whole order's requirement is
+ * checked — two products sharing an ingredient are summed — and only then
+ * is anything deducted. A shortfall throws InsufficientStockError, which
+ * rolls back the entire payment.
  */
 async function applyRecipeConsumption(
   conn: import("mysql2/promise").PoolConnection,
   outletId: number,
   orderId: number,
-  lines: { productId: number; qty: number }[],
+  lines: { orderItemId: number; productId: number; qty: number }[],
   createdBy: number,
-): Promise<number> {
-  let orderHppTotal = 0;
+): Promise<ConsumptionResult> {
+  const productIds = Array.from(new Set(lines.map((l) => l.productId)));
+  const recipeLines = await loadActiveRecipeLines(conn, outletId, productIds);
 
-  for (const line of lines) {
-    const [recipeRows] = await conn.query<import("mysql2").RowDataPacket[]>(
-      "SELECT id, yield_qty FROM recipes WHERE outlet_id = ? AND product_id = ? AND is_active = 1 LIMIT 1",
-      [outletId, line.productId],
-    );
-    const recipe = recipeRows[0];
-    if (!recipe) continue;
-
-    const recipeId = Number(recipe.id);
-    const yieldQty = Number(recipe.yield_qty) || 1;
-
-    const [itemRows] = await conn.query<import("mysql2").RowDataPacket[]>(
-      "SELECT stock_item_id, qty FROM recipe_items WHERE recipe_id = ?",
-      [recipeId],
-    );
-
-    let hppTotal = 0;
-    for (const ingredient of itemRows) {
-      const stockItemId = Number(ingredient.stock_item_id);
-      const requiredQty = (Number(ingredient.qty) * line.qty) / yieldQty;
-
-      const [stockRows] = await conn.query<import("mysql2").RowDataPacket[]>(
-        "SELECT qty_on_hand, avg_cost FROM inventory_stocks WHERE outlet_id = ? AND stock_item_id = ? FOR UPDATE",
-        [outletId, stockItemId],
-      );
-      const current = stockRows[0];
-      const avgCost = current ? Number(current.avg_cost) : 0;
-      const newQty = (current ? Number(current.qty_on_hand) : 0) - requiredQty;
-
-      await conn.query(
-        `INSERT INTO inventory_stocks (outlet_id, stock_item_id, qty_on_hand, avg_cost)
-         VALUES (?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE qty_on_hand = VALUES(qty_on_hand)`,
-        [outletId, stockItemId, newQty, avgCost],
-      );
-
-      await conn.query(
-        `INSERT INTO inventory_movements
-           (outlet_id, stock_item_id, movement_type, qty, unit_cost, reference_type, created_by)
-         VALUES (?, ?, 'SALE_OUT', ?, ?, ?, ?)`,
-        [outletId, stockItemId, requiredQty, avgCost, `ORDER:${orderId}`, createdBy],
-      );
-
-      hppTotal += requiredQty * avgCost;
-    }
-
-    await conn.query("UPDATE order_items SET hpp_total = ? WHERE order_id = ? AND product_id = ?", [
-      hppTotal,
-      orderId,
-      line.productId,
-    ]);
-    orderHppTotal += hppTotal;
+  // No active recipe = no stock (stock is fully system-controlled), so it can't be sold.
+  const noRecipe = productsWithoutRecipe(recipeLines, productIds);
+  if (noRecipe.length > 0) {
+    const [rows] = await conn.query<import("mysql2").RowDataPacket[]>("SELECT name FROM products WHERE id IN (?)", [noRecipe]);
+    throw new InsufficientStockError(rows.map((r) => String(r.name)));
   }
 
-  return orderHppTotal;
+  const required = new Map<number, { name: string; accountId: number | null; qty: number }>();
+  for (const line of lines) {
+    for (const rl of recipeLines) {
+      if (rl.productId !== line.productId || rl.perPortion <= 0) continue;
+      const entry = required.get(rl.stockItemId) ?? {
+        name: rl.stockItemName,
+        accountId: rl.accountId,
+        qty: 0,
+      };
+      entry.qty += rl.perPortion * line.qty;
+      required.set(rl.stockItemId, entry);
+    }
+  }
+
+  const stockItemIds = Array.from(required.keys()).sort((a, b) => a - b);
+  const locked = new Map<number, { qtyOnHand: number; avgCost: number }>();
+  const short: string[] = [];
+  for (const stockItemId of stockItemIds) {
+    const stock = await getOrLockStock(conn, outletId, stockItemId);
+    const qtyOnHand = stock?.qtyOnHand ?? 0;
+    locked.set(stockItemId, { qtyOnHand, avgCost: stock?.avgCost ?? 0 });
+    if (qtyOnHand + 1e-9 < required.get(stockItemId)!.qty) short.push(required.get(stockItemId)!.name);
+  }
+  if (short.length > 0) throw new InsufficientStockError(short);
+
+  const hppByAccount = new Map<number | null, number>();
+  for (const stockItemId of stockItemIds) {
+    const need = required.get(stockItemId)!;
+    const { qtyOnHand, avgCost } = locked.get(stockItemId)!;
+    await upsertStock(conn, outletId, stockItemId, qtyOnHand - need.qty, avgCost);
+    await insertMovement(conn, {
+      outletId,
+      stockItemId,
+      movementType: "SALE_OUT",
+      qty: need.qty,
+      unitCost: avgCost,
+      referenceType: "ORDER",
+      referenceId: orderId,
+      createdBy,
+    });
+    hppByAccount.set(need.accountId, (hppByAccount.get(need.accountId) ?? 0) + need.qty * avgCost);
+  }
+
+  let hppTotal = 0;
+  for (const line of lines) {
+    let lineHpp = 0;
+    for (const rl of recipeLines) {
+      if (rl.productId !== line.productId || rl.perPortion <= 0) continue;
+      lineHpp += rl.perPortion * line.qty * locked.get(rl.stockItemId)!.avgCost;
+    }
+    if (lineHpp > 0) {
+      await conn.query("UPDATE order_items SET hpp_total = ? WHERE id = ?", [lineHpp, line.orderItemId]);
+    }
+    hppTotal += lineHpp;
+  }
+
+  return { hppTotal, hppByAccount };
 }
+
+// Chart of accounts codes from COA.pdf (database/18_new_coa_import.sql).
+// Non-cash payment methods (BANK_TRANSFER/QRIS/CARD/OTHER) all post to the
+// same default bank leaf (BRI) since orders don't record which specific bank
+// account a transfer/QRIS payment landed in — a real limitation, not an
+// oversight. COGS is itemized: each ingredient consumed debits its stock
+// item's linked 5000.xxx account (falling back to the "5000 HPP" header for
+// an item with no link), crediting 1200.001 Persediaan — the same account
+// purchase journals debit, so the inventory ledger matches stock value.
+const KAS_ACCOUNT_CODE = "1000.001";
+const DEFAULT_BANK_ACCOUNT_CODE = "1000.002";
+const PERSEDIAAN_ACCOUNT_CODE = "1200.001";
+const PENJUALAN_ACCOUNT_CODE = "4000.001";
+const HPP_ACCOUNT_CODE = "5000";
 
 /**
  * Posts the PRD's two required journal entries for a paid sale: Dr Kas/Bank,
  * Cr Penjualan for the sale itself, and (only when a recipe consumed stock)
- * Dr Beban Bahan Baku, Cr Persediaan for COGS. Silently does nothing if the
+ * Dr HPP, Cr Persediaan for COGS. Silently does nothing if the
  * chart of accounts is missing an expected code — accounting posting failing
  * should never be the reason a paid sale can't complete.
  */
@@ -129,19 +194,29 @@ async function applySalePosting(
   outletId: number,
   orderId: number,
   grandTotal: number,
+  pb1Tax: number,
   paymentMethod: PaymentMethod,
-  hppTotal: number,
+  consumption: ConsumptionResult,
   createdBy: number,
 ): Promise<void> {
   const [accountRows] = await conn.query<import("mysql2").RowDataPacket[]>(
-    "SELECT id, code FROM accounts WHERE code IN ('1100', '1110', '1200', '4100', '5100')",
+    "SELECT id, code FROM accounts WHERE code IN (?, ?, ?, ?, ?, ?)",
+    [
+      KAS_ACCOUNT_CODE,
+      DEFAULT_BANK_ACCOUNT_CODE,
+      PERSEDIAAN_ACCOUNT_CODE,
+      PENJUALAN_ACCOUNT_CODE,
+      HPP_ACCOUNT_CODE,
+      PB1_ACCOUNT_CODE,
+    ],
   );
   const accountByCode = new Map(accountRows.map((r) => [String(r.code), Number(r.id)]));
-  const kasId = accountByCode.get("1100");
-  const bankId = accountByCode.get("1110");
-  const persediaanId = accountByCode.get("1200");
-  const penjualanId = accountByCode.get("4100");
-  const bebanBahanBakuId = accountByCode.get("5100");
+  const kasId = accountByCode.get(KAS_ACCOUNT_CODE);
+  const bankId = accountByCode.get(DEFAULT_BANK_ACCOUNT_CODE);
+  const persediaanId = accountByCode.get(PERSEDIAAN_ACCOUNT_CODE);
+  const penjualanId = accountByCode.get(PENJUALAN_ACCOUNT_CODE);
+  const hppAccountId = accountByCode.get(HPP_ACCOUNT_CODE);
+  const pb1AccountId = accountByCode.get(PB1_ACCOUNT_CODE);
   if (!kasId || !bankId || !penjualanId) return;
 
   const cashOrBankId = paymentMethod === "CASH" ? kasId : bankId;
@@ -158,12 +233,27 @@ async function applySalePosting(
     "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, ?, 0)",
     [saleJournalEntryId, cashOrBankId, grandTotal],
   );
-  await conn.query(
-    "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, 0, ?)",
-    [saleJournalEntryId, penjualanId, grandTotal],
-  );
+  // PB1 collected from the customer is a tax liability, not revenue — split it out
+  // into its own credit line (2100.002 HUTANG PB1) when that account exists, rather
+  // than inflating Penjualan with tax the business doesn't actually keep.
+  if (pb1AccountId && pb1Tax > 0) {
+    await conn.query(
+      "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, 0, ?)",
+      [saleJournalEntryId, pb1AccountId, pb1Tax],
+    );
+    await conn.query(
+      "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, 0, ?)",
+      [saleJournalEntryId, penjualanId, grandTotal - pb1Tax],
+    );
+  } else {
+    await conn.query(
+      "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, 0, ?)",
+      [saleJournalEntryId, penjualanId, grandTotal],
+    );
+  }
 
-  if (hppTotal > 0 && persediaanId && bebanBahanBakuId) {
+  const hppTotal = Math.round(consumption.hppTotal * 100) / 100;
+  if (hppTotal > 0 && persediaanId && hppAccountId) {
     const cogsJournalNo = await nextJournalNo(conn);
     const [cogsResult] = await conn.query(
       `INSERT INTO journal_entries
@@ -172,13 +262,27 @@ async function applySalePosting(
       [cogsJournalNo, outletId, orderId, `COGS — order #${orderId}`, createdBy],
     );
     const cogsJournalEntryId = (cogsResult as { insertId: number }).insertId;
-    await conn.query(
-      "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, ?, 0)",
-      [cogsJournalEntryId, bebanBahanBakuId, hppTotal],
-    );
+
+    // One debit per ingredient account, rounded to cents; the last one absorbs
+    // the rounding remainder so the entry balances against the single credit.
+    const debits = Array.from(consumption.hppByAccount.entries())
+      .map(([accountId, amount]) => ({
+        accountId: accountId ?? hppAccountId,
+        amount: Math.round(amount * 100) / 100,
+      }))
+      .filter((d) => d.amount > 0);
+    const roundingGap = hppTotal - debits.reduce((sum, d) => sum + d.amount, 0);
+    if (debits.length > 0) debits[debits.length - 1].amount += roundingGap;
+
+    for (const debit of debits) {
+      await conn.query(
+        "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, ?, 0)",
+        [cogsJournalEntryId, debit.accountId, debit.amount.toFixed(2)],
+      );
+    }
     await conn.query(
       "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, 0, ?)",
-      [cogsJournalEntryId, persediaanId, hppTotal],
+      [cogsJournalEntryId, persediaanId, hppTotal.toFixed(2)],
     );
   }
 }
@@ -210,42 +314,40 @@ export async function submitOrder(
     await conn.beginTransaction();
 
     const [productRows] = await conn.query<import("mysql2").RowDataPacket[]>(
-      `SELECT op.product_id, op.selling_price, op.tax_rate
+      `SELECT op.product_id, op.selling_price
        FROM outlet_products op
-       WHERE op.outlet_id = ? AND op.is_available = 1
+       WHERE op.outlet_id = ? AND op.channel = ? AND op.is_available = 1
          AND op.product_id IN (${input.items.map(() => "?").join(",") || "NULL"})`,
-      [input.outletId, ...input.items.map((i) => i.productId)],
+      [input.outletId, pricingChannelFor(input.channel), ...input.items.map((i) => i.productId)],
     );
-    const priceMap = new Map(
-      productRows.map((r) => [
-        Number(r.product_id),
-        { price: Number(r.selling_price), taxRate: Number(r.tax_rate) },
-      ]),
-    );
+    const priceMap = new Map(productRows.map((r) => [Number(r.product_id), Number(r.selling_price)]));
 
     let subtotal = 0;
-    let taxTotal = 0;
     const lines: { productId: number; qty: number; unitPrice: number; lineTotal: number }[] = [];
 
     for (const item of input.items) {
-      const priced = priceMap.get(item.productId);
-      if (!priced || item.qty <= 0) {
+      const price = priceMap.get(item.productId);
+      if (price == null || item.qty <= 0) {
         await conn.rollback();
         return { ok: false, message: t("pos.errItemsUnavailable") };
       }
-      const lineTotal = priced.price * item.qty;
+      const lineTotal = price * item.qty;
       subtotal += lineTotal;
-      taxTotal += lineTotal * priced.taxRate;
       lines.push({
         productId: item.productId,
         qty: item.qty,
-        unitPrice: priced.price,
+        unitPrice: price,
         lineTotal,
       });
     }
 
-    const discountTotal = Math.max(0, Math.min(input.discountTotal, subtotal));
-    const grandTotal = subtotal - discountTotal + taxTotal;
+    const discountPercent = DISCOUNT_PERCENT_OPTIONS.includes(input.discountPercent)
+      ? input.discountPercent
+      : 0;
+    const discountTotal = subtotal * (discountPercent / 100);
+    const taxTotal = subtotal * PB1_RATE;
+    const serviceChargeTotal = subtotal * SERVICE_CHARGE_RATE;
+    const grandTotal = subtotal - discountTotal + serviceChargeTotal + taxTotal;
     const status = input.mode === "pay" ? "PAID" : "OPEN";
     const closedAt = input.mode === "pay" ? new Date() : null;
 
@@ -254,14 +356,17 @@ export async function submitOrder(
     if (input.holdOrderId) {
       const [updateResult] = await conn.query<import("mysql2").ResultSetHeader>(
         `UPDATE orders SET table_id = ?, order_channel = ?, subtotal = ?, discount_total = ?,
-                tax_total = ?, grand_total = ?, status = ?, closed_at = ?
+                discount_percent = ?, tax_total = ?, service_charge_total = ?, grand_total = ?,
+                status = ?, closed_at = ?
          WHERE id = ? AND outlet_id = ? AND status = 'OPEN'`,
         [
           input.tableId,
           input.channel,
           subtotal,
           discountTotal,
+          discountPercent,
           taxTotal,
+          serviceChargeTotal,
           grandTotal,
           status,
           closedAt,
@@ -280,8 +385,8 @@ export async function submitOrder(
       const [result] = await conn.query<import("mysql2").ResultSetHeader>(
         `INSERT INTO orders
            (order_no, outlet_id, table_id, order_channel, status, subtotal, discount_total,
-            tax_total, grand_total, ordered_at, closed_at, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
+            discount_percent, tax_total, service_charge_total, grand_total, ordered_at, closed_at, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
         [
           orderNo,
           input.outletId,
@@ -290,7 +395,9 @@ export async function submitOrder(
           status,
           subtotal,
           discountTotal,
+          discountPercent,
           taxTotal,
+          serviceChargeTotal,
           grandTotal,
           closedAt,
           Number(session.user.id),
@@ -299,29 +406,44 @@ export async function submitOrder(
       orderId = result.insertId;
     }
 
+    const insertedLines: { orderItemId: number; productId: number; qty: number }[] = [];
     for (const line of lines) {
-      await conn.query(
+      const [itemResult] = await conn.query<import("mysql2").ResultSetHeader>(
         `INSERT INTO order_items (order_id, product_id, qty, unit_price, discount, line_total)
          VALUES (?, ?, ?, ?, 0, ?)`,
         [orderId, line.productId, line.qty, line.unitPrice, line.lineTotal],
       );
+      insertedLines.push({ orderItemId: itemResult.insertId, productId: line.productId, qty: line.qty });
     }
 
     if (status === "PAID" && input.paymentMethod) {
-      const hppTotal = await applyRecipeConsumption(
-        conn,
-        input.outletId,
-        orderId,
-        lines,
-        Number(session.user.id),
-      );
+      let consumption: ConsumptionResult;
+      try {
+        consumption = await applyRecipeConsumption(
+          conn,
+          input.outletId,
+          orderId,
+          insertedLines,
+          Number(session.user.id),
+        );
+      } catch (error) {
+        if (error instanceof InsufficientStockError) {
+          await conn.rollback();
+          return {
+            ok: false,
+            message: t("pos.errInsufficientStock", { items: error.ingredients.join(", ") }),
+          };
+        }
+        throw error;
+      }
       await applySalePosting(
         conn,
         input.outletId,
         orderId,
         grandTotal,
+        taxTotal,
         input.paymentMethod,
-        hppTotal,
+        consumption,
         Number(session.user.id),
       );
     }
@@ -355,15 +477,79 @@ export async function submitOrder(
   }
 }
 
-export async function cancelHeldOrder(orderId: number, outletId: number): Promise<{ ok: boolean }> {
-  const session = await requireRole(ALLOWED_ROLES);
-  if (!(await hasOutletAccess(session, outletId))) return { ok: false };
+export interface VoidOrderInput {
+  outletId: number;
+  // Omitted when discarding a cart that was never saved/held as a real order —
+  // there's nothing in `orders` to update, but the void is still logged.
+  orderId?: number;
+  reason: string;
+  managerEmail: string;
+  managerPassword: string;
+}
 
-  const [result] = await pool.query<import("mysql2").ResultSetHeader>(
-    "UPDATE orders SET status = 'CANCELLED' WHERE id = ? AND outlet_id = ? AND status = 'OPEN'",
-    [orderId, outletId],
+/**
+ * Every void — clearing the current in-progress cart or cancelling a held
+ * order — requires a reason and a live re-authentication of an
+ * ADMIN/GM/MANAGER account (their own email + password, checked the same way
+ * sign-in does), not just the cashier's own session. This is a real control,
+ * not decoration: a CASHIER-only session can never self-approve a void.
+ */
+export async function voidOrder(
+  input: VoidOrderInput,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
+  if (!(await hasOutletAccess(session, input.outletId))) {
+    return { ok: false, message: t("pos.errNoOutletAccess") };
+  }
+
+  const reason = input.reason.trim();
+  if (!reason) {
+    return { ok: false, message: t("pos.errVoidReasonRequired") };
+  }
+
+  const manager = await findUserByEmail(input.managerEmail.trim().toLowerCase());
+  if (!manager || !manager.password_hash || manager.status !== "ACTIVE") {
+    return { ok: false, message: t("pos.errInvalidManagerCredentials") };
+  }
+  const passwordMatches = await bcrypt.compare(input.managerPassword, manager.password_hash);
+  if (!passwordMatches) {
+    return { ok: false, message: t("pos.errInvalidManagerCredentials") };
+  }
+  const managerRoles = await findUserRoleCodes(manager.id);
+  if (!managerRoles.some((role) => MANAGER_ROLES.includes(role))) {
+    return { ok: false, message: t("pos.errManagerRoleRequired") };
+  }
+
+  if (input.orderId) {
+    const [result] = await pool.query<import("mysql2").ResultSetHeader>(
+      `UPDATE orders SET status = 'VOIDED', void_reason = ?, voided_by = ?,
+              void_authorized_by = ?, voided_at = NOW()
+       WHERE id = ? AND outlet_id = ? AND status = 'OPEN'`,
+      [reason, Number(session.user.id), manager.id, input.orderId, input.outletId],
+    );
+    if (result.affectedRows === 0) {
+      return { ok: false, message: t("pos.errHeldOrderUnavailable") };
+    }
+    await pool.query(
+      `UPDATE dining_tables dt JOIN orders o ON o.table_id = dt.id
+       SET dt.status = 'AVAILABLE' WHERE o.id = ? AND dt.status = 'OCCUPIED'`,
+      [input.orderId],
+    );
+  }
+
+  await pool.query(
+    `INSERT INTO audit_logs (user_id, outlet_id, action, entity_type, entity_id, after_json)
+     VALUES (?, ?, 'VOID_ORDER', 'order', ?, ?)`,
+    [
+      Number(session.user.id),
+      input.outletId,
+      input.orderId ?? null,
+      JSON.stringify({ reason, authorizedBy: manager.id, authorizedByEmail: manager.email }),
+    ],
   );
-  return { ok: result.affectedRows > 0 };
+
+  return { ok: true };
 }
 
 export async function loadHeldOrder(orderId: number): Promise<OrderDetail | null> {
@@ -378,4 +564,60 @@ export async function refreshHeldOrders(outletId: number): Promise<HeldOrderSumm
   const session = await requireRole(ALLOWED_ROLES);
   if (!(await hasOutletAccess(session, outletId))) return [];
   return getHeldOrders(outletId);
+}
+
+export async function refreshTables(outletId: number): Promise<DiningTableOption[] | null> {
+  const session = await requireRole(ALLOWED_ROLES);
+  if (!(await hasOutletAccess(session, outletId))) return null;
+  return getDiningTables(outletId);
+}
+
+/**
+ * "Kosongkan meja": the cashier frees an occupied Dine In table once the guests
+ * have left. Refused while the table still has an open (held / QR) order — that
+ * order must be paid or voided first, so a table is never freed under a running bill.
+ */
+export async function releaseTable(
+  outletId: number,
+  tableId: number,
+): Promise<{ ok: true; tables: DiningTableOption[] } | { ok: false; message: string }> {
+  const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
+  if (!(await hasOutletAccess(session, outletId))) {
+    return { ok: false, message: t("pos.errNoOutletAccess") };
+  }
+
+  const [open] = await pool.query<import("mysql2").RowDataPacket[]>(
+    "SELECT order_no FROM orders WHERE table_id = ? AND outlet_id = ? AND status = 'OPEN' LIMIT 1",
+    [tableId, outletId],
+  );
+  if (open.length > 0) {
+    return { ok: false, message: t("pos.errTableHasOpenOrder", { orderNo: String(open[0].order_no) }) };
+  }
+
+  const [result] = await pool.query<import("mysql2").ResultSetHeader>(
+    "UPDATE dining_tables SET status = 'AVAILABLE' WHERE id = ? AND outlet_id = ? AND status = 'OCCUPIED'",
+    [tableId, outletId],
+  );
+  if (result.affectedRows > 0) {
+    await pool.query(
+      `INSERT INTO audit_logs (user_id, outlet_id, action, entity_type, entity_id)
+       VALUES (?, ?, 'RELEASE_TABLE', 'dining_table', ?)`,
+      [Number(session.user.id), outletId, tableId],
+    );
+  }
+  return { ok: true, tables: await getDiningTables(outletId) };
+}
+
+/** Re-reads the outlet's catalog so stock badges (Low / Out) reflect the latest sales and purchases. */
+export async function refreshCatalog(
+  outletId: number,
+): Promise<Record<PricingChannel, CatalogProduct[]> | null> {
+  const session = await requireRole(ALLOWED_ROLES);
+  if (!(await hasOutletAccess(session, outletId))) return null;
+  const catalogs = await Promise.all(PRICING_CHANNELS.map((channel) => getPosCatalog(outletId, channel)));
+  return Object.fromEntries(PRICING_CHANNELS.map((channel, i) => [channel, catalogs[i]])) as Record<
+    PricingChannel,
+    CatalogProduct[]
+  >;
 }

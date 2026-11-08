@@ -1,6 +1,7 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
+import { toStockFactor, type ConvertibleUnit } from "@/lib/unit-conversion";
 
 export type StockStatus = "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
 export type ItemMasterStatus = "ACTIVE" | "INACTIVE";
@@ -11,6 +12,7 @@ export interface StockItemRow {
   name: string;
   categoryId: number;
   categoryName: string;
+  accountId: number | null;
   unitId: number;
   unitName: string;
   reorderLevel: number;
@@ -30,7 +32,7 @@ function deriveStatus(qtyOnHand: number, reorderLevel: number): StockStatus {
 export async function getStockItems(outletId: number): Promise<StockItemRow[]> {
   const [rows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
     `SELECT si.id AS stockItemId, si.sku, si.name,
-            si.category_id AS categoryId, c.name AS categoryName,
+            si.category_id AS categoryId, c.name AS categoryName, si.account_id AS accountId,
             si.unit_id AS unitId, u.name AS unitName, si.reorder_level AS reorderLevel,
             si.status AS itemStatus,
             COALESCE(ist.qty_on_hand, 0) AS qtyOnHand, COALESCE(ist.avg_cost, 0) AS avgCost
@@ -52,6 +54,7 @@ export async function getStockItems(outletId: number): Promise<StockItemRow[]> {
       name: String(r.name),
       categoryId: Number(r.categoryId),
       categoryName: String(r.categoryName),
+      accountId: r.accountId === null ? null : Number(r.accountId),
       unitId: Number(r.unitId),
       unitName: String(r.unitName),
       reorderLevel,
@@ -83,29 +86,67 @@ export function summarizeStockItems(items: StockItemRow[]): InventorySummary {
   };
 }
 
+/** A unit a recipe line may use for this stock item, with its factor into the stock unit. */
+export interface RecipeUnitOption {
+  unitId: number;
+  code: string;
+  name: string;
+  /** 1 of this unit = `toStock` stock units (e.g. GR on a KG item → 0.001). */
+  toStock: number;
+}
+
 export interface StockItemOption {
   stockItemId: number;
   sku: string;
   name: string;
+  accountId: number | null;
   unitId: number;
   unitName: string;
   qtyOnHand: number;
   avgCost: number;
+  /** Units selectable on a recipe line: the stock unit first, then same-group units. */
+  recipeUnits: RecipeUnitOption[];
+}
+
+export async function getConvertibleUnits(): Promise<ConvertibleUnit[]> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, code, name, unit_group AS unitGroup, base_conversion AS baseConversion FROM units",
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    code: String(r.code),
+    name: String(r.name),
+    unitGroup: r.unitGroup === null ? null : String(r.unitGroup),
+    baseConversion: Number(r.baseConversion),
+  }));
 }
 
 export async function getStockItemOptions(outletId: number): Promise<StockItemOption[]> {
-  const items = await getStockItems(outletId);
+  const [items, units] = await Promise.all([getStockItems(outletId), getConvertibleUnits()]);
+  const unitById = new Map(units.map((u) => [u.id, u]));
   return items
     .filter((i) => i.itemStatus === "ACTIVE")
-    .map((i) => ({
-      stockItemId: i.stockItemId,
-      sku: i.sku,
-      name: i.name,
-      unitId: i.unitId,
-      unitName: i.unitName,
-      qtyOnHand: i.qtyOnHand,
-      avgCost: i.avgCost,
-    }));
+    .map((i) => {
+      const stockUnit = unitById.get(i.unitId);
+      const recipeUnits: RecipeUnitOption[] = stockUnit
+        ? units
+            .map((u) => ({ u, toStock: toStockFactor(u, stockUnit) }))
+            .filter((x): x is { u: ConvertibleUnit; toStock: number } => x.toStock !== null)
+            .sort((a, b) => (a.u.id === stockUnit.id ? -1 : b.u.id === stockUnit.id ? 1 : a.toStock - b.toStock))
+            .map(({ u, toStock }) => ({ unitId: u.id, code: u.code, name: u.name, toStock }))
+        : [];
+      return {
+        stockItemId: i.stockItemId,
+        sku: i.sku,
+        name: i.name,
+        accountId: i.accountId,
+        unitId: i.unitId,
+        unitName: i.unitName,
+        qtyOnHand: i.qtyOnHand,
+        avgCost: i.avgCost,
+        recipeUnits,
+      };
+    });
 }
 
 export interface UnitOption {

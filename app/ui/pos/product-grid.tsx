@@ -103,12 +103,26 @@ export function ProductGrid({
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
               {pageItems.map((product) => {
                 const Icon = product.productType === "BEVERAGE" ? CoffeeCupIcon : UtensilsIcon;
+                const isOut = product.stockStatus === "OUT";
+                const isLow = product.stockStatus === "LOW";
+                const stockHint =
+                  product.stockIngredients.length > 0
+                    ? t("pos.stockIngredientsHint", { items: product.stockIngredients.join(", ") })
+                    : undefined;
                 return (
                   <button
                     key={product.productId}
                     type="button"
                     onClick={() => onAddToCart(product)}
-                    className="group flex flex-col rounded-xl border border-gray-100 bg-white p-3 text-left shadow-sm transition hover:border-amber-200 hover:shadow-md"
+                    disabled={isOut}
+                    title={stockHint}
+                    className={`group relative flex flex-col rounded-xl border bg-white p-3 text-left shadow-sm transition ${
+                      isOut
+                        ? "cursor-not-allowed border-gray-100 opacity-50 grayscale"
+                        : isLow
+                          ? "border-amber-300 hover:shadow-md"
+                          : "border-gray-100 hover:border-amber-200 hover:shadow-md"
+                    }`}
                   >
                     <span className="relative flex h-20 w-full items-center justify-center overflow-hidden rounded-lg bg-amber-50 text-amber-700">
                       {product.imageUrl ? (
@@ -122,15 +136,38 @@ export function ProductGrid({
                       ) : (
                         <Icon className="h-8 w-8" />
                       )}
+                      {(isOut || isLow) && (
+                        <span
+                          className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            isOut ? "bg-gray-800 text-white" : "bg-amber-500 text-white"
+                          }`}
+                        >
+                          {isOut ? t("pos.stockOut") : t("pos.stockLow")}
+                        </span>
+                      )}
                     </span>
                     <p className="mt-2.5 truncate text-sm font-medium text-gray-900">
                       {product.name}
                     </p>
+                    {isLow && product.portionsLeft != null && (
+                      <p className="truncate text-[11px] font-medium text-amber-700">
+                        {t("pos.portionsLeft", { count: product.portionsLeft })}
+                      </p>
+                    )}
+                    {isOut && (
+                      <p className="truncate text-[11px] font-medium text-gray-500">
+                        {product.noRecipe ? t("pos.noRecipeYet") : t("pos.cannotBeOrdered")}
+                      </p>
+                    )}
                     <div className="mt-1.5 flex items-center justify-between">
                       <span className="text-sm font-semibold text-gray-900">
                         {formatRp(product.sellingPrice)}
                       </span>
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-700 text-white transition group-hover:bg-amber-800">
+                      <span
+                        className={`flex h-6 w-6 items-center justify-center rounded-full text-white transition ${
+                          isOut ? "bg-gray-300" : "bg-amber-700 group-hover:bg-amber-800"
+                        }`}
+                      >
                         <PlusIcon className="h-3.5 w-3.5" />
                       </span>
                     </div>

@@ -1,147 +1,166 @@
 import { requireRole } from "@/lib/auth-guard";
-import { getOutletsForUser } from "@/lib/pos";
-import { getSalesReport, type ReportGranularity } from "@/lib/reports";
+import { resolveLedgerScope } from "@/lib/ledger";
+import { getSalesRecap, MEAL_TIMES, parseSalesRecapParams, SALES_TYPES } from "@/lib/sales-report";
+import { mealTimeLabel, salesRecapHeaders, salesTypeLabel } from "@/lib/sales-report-labels";
+import { COMPANY_NAME, firstDayOfMonth, formatReportDate, isoDateOr, today } from "@/lib/report-labels";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
-import { ViewModeSelect } from "@/app/ui/reports/view-mode-select";
-import { ExportControls } from "@/app/ui/reports/export-controls";
+import { ParamSelect, ReportDownload, TimeRangeSelect } from "@/app/ui/reports/report-filters";
 import { PageHeader } from "@/app/ui/page-header";
 import { getT } from "@/lib/i18n/server";
 
 const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "ACCOUNTING"];
 
-function formatRp(value: number) {
-  return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
+function rp(value: number) {
+  return Math.round(value).toLocaleString("id-ID");
 }
 
-function firstDayOfMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-}
+type SalesSearchParams = {
+  outlet?: string;
+  from?: string;
+  to?: string;
+  tf?: string;
+  tt?: string;
+  days?: string;
+  type?: string;
+  meal?: string;
+};
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function formatPeriod(period: string, view: ReportGranularity, locale: string): string {
-  if (view === "monthly") {
-    const [year, month] = period.split("-").map(Number);
-    return new Date(year, month - 1, 1).toLocaleDateString(locale === "id" ? "id-ID" : "en-US", {
-      year: "numeric",
-      month: "long",
-    });
-  }
-  return new Date(`${period}T00:00:00`).toLocaleDateString(locale === "id" ? "id-ID" : "en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-export default async function SalesReportPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ outlet?: string; from?: string; to?: string; view?: string }>;
-}) {
+export default async function SalesReportPage({ searchParams }: { searchParams: Promise<SalesSearchParams> }) {
   const session = await requireRole(ALLOWED_ROLES);
   const { t, locale } = await getT();
-  const outlets = await getOutletsForUser(session);
   const params = await searchParams;
+  const scope = await resolveLedgerScope(session, params.outlet, t("reports.allOutlets"));
+  const from = isoDateOr(params.from, firstDayOfMonth());
+  const to = isoDateOr(params.to, today());
+  const filters = parseSalesRecapParams((k) => params[k as keyof SalesSearchParams]);
 
-  const selectedOutletId =
-    (params.outlet ? Number(params.outlet) : null) &&
-    outlets.some((o) => o.id === Number(params.outlet))
-      ? Number(params.outlet)
-      : (outlets[0]?.id ?? 0);
+  const rows = await getSalesRecap({ outletIds: scope.outletIds, from, to, ...filters });
 
-  const view: ReportGranularity = params.view === "monthly" ? "monthly" : "daily";
-  const from = params.from ?? firstDayOfMonth();
-  const to = params.to ?? today();
-  const fromDateTime = `${from} 00:00:00`;
-  const toDateTime = `${to} 23:59:59`;
+  const sum = (f: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + f(r), 0);
+  const summary = [
+    { label: t("reports.summaryBills"), value: new Set(rows.map((r) => r.orderNo)).size.toLocaleString("id-ID") },
+    { label: t("reports.summaryItems"), value: sum((r) => r.qty).toLocaleString("id-ID") },
+    { label: t("reports.colSubtotal"), value: rp(sum((r) => r.subtotal)) },
+    { label: t("reports.colBillDiscount"), value: rp(sum((r) => r.menuDiscount + r.billDiscount)) },
+    { label: t("reports.colNettSales"), value: rp(sum((r) => r.nettSales)) },
+    { label: t("reports.colServiceChargeTotal"), value: rp(sum((r) => r.serviceCharge)) },
+    { label: t("reports.colTaxTotal"), value: rp(sum((r) => r.tax)) },
+    { label: t("reports.colGrandTotalLine"), value: rp(sum((r) => r.grandTotal)) },
+  ];
 
-  const rows = await getSalesReport(selectedOutletId, fromDateTime, toDateTime, view);
-
-  const totals = rows.reduce(
-    (acc, r) => ({
-      orderCount: acc.orderCount + r.orderCount,
-      netSales: acc.netSales + r.netSales,
-      grandTotal: acc.grandTotal + r.grandTotal,
-      totalHpp: acc.totalHpp + r.totalHpp,
-      grossProfit: acc.grossProfit + r.grossProfit,
-    }),
-    { orderCount: 0, netSales: 0, grandTotal: 0, totalHpp: 0, grossProfit: 0 },
-  );
-
-  const selectedOutlet = outlets.find((o) => o.id === selectedOutletId);
+  const query = new URLSearchParams({
+    outlet: String(scope.selectedOutletId),
+    from,
+    to,
+    tf: filters.timeFrom,
+    tt: filters.timeTo,
+    days: filters.days,
+    ...(filters.salesType ? { type: filters.salesType } : {}),
+    ...(filters.mealTime ? { meal: filters.mealTime } : {}),
+  }).toString();
+  const outletCode = scope.outlets.find((o) => o.id === scope.selectedOutletId)?.code ?? "ALL";
+  const headers = salesRecapHeaders(t);
 
   return (
     <>
       <PageHeader eyebrow={t("nav.reports")} title={t("nav.salesReport")}>
-        <OutletSelect outlets={outlets} selectedOutletId={selectedOutletId} />
+        <OutletSelect outlets={scope.outlets} selectedOutletId={scope.selectedOutletId} allLabel={t("reports.allOutlets")} />
         <DateRangeSelect from={from} to={to} />
-        <ViewModeSelect view={view} dailyLabel={t("reports.viewDaily")} monthlyLabel={t("reports.viewMonthly")} />
-        <ExportControls
-          exportPath="/reports/sales/export"
-          filenamePrefix="sales-report"
-          outletCode={selectedOutlet?.code ?? "outlet"}
-          view={view}
-          from={from}
-          to={to}
-          outletId={selectedOutletId}
+        <TimeRangeSelect timeFrom={filters.timeFrom} timeTo={filters.timeTo} />
+        <ParamSelect
+          param="days"
+          value={filters.days === "ALL" ? "" : filters.days}
+          options={[
+            { value: "", label: t("reports.daysAll") },
+            { value: "WEEKDAY", label: t("reports.daysWeekday") },
+            { value: "WEEKEND", label: t("reports.daysWeekend") },
+          ]}
+        />
+        <ParamSelect
+          param="type"
+          value={filters.salesType ?? ""}
+          options={[
+            { value: "", label: t("reports.salesTypeAll") },
+            ...SALES_TYPES.map((s) => ({ value: s, label: salesTypeLabel(t, s) })),
+          ]}
+        />
+        <ParamSelect
+          param="meal"
+          value={filters.mealTime ?? ""}
+          options={[
+            { value: "", label: t("reports.mealTimeAll") },
+            ...MEAL_TIMES.map((m) => ({ value: m, label: mealTimeLabel(t, m) })),
+          ]}
+        />
+        <ReportDownload
+          exportUrl={`/reports/sales/export?${query}`}
+          filename={`sales-report-${outletCode}-${from}_to_${to}.xlsx`}
         />
       </PageHeader>
 
       <div className="flex-1 overflow-y-auto p-6 sm:p-8">
-        <p className="mb-3 text-xs text-gray-400">{t("reports.viewModeHint")}</p>
+        <p className="mb-3 text-xs text-gray-400">{t("reports.mealTimeHint")}</p>
+
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+          {summary.map((s) => (
+            <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+              <p className="text-[11px] text-gray-500">{s.label}</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums text-gray-900">{s.value}</p>
+            </div>
+          ))}
+        </div>
+
         <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
           <div className="border-b border-gray-100 p-5">
-            <h2 className="text-base font-semibold text-gray-900">{t("nav.salesReport")}</h2>
+            <h2 className="text-base font-bold text-gray-900">{t("reports.salesRecapTitle")}</h2>
+            <p className="text-xs text-gray-500">
+              {COMPANY_NAME} · {scope.label} ·{" "}
+              {t("reports.periodLabel", { from: formatReportDate(from, locale), to: formatReportDate(to, locale) })}
+            </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
-                  <th className="px-5 py-3 font-medium">{t("reports.colPeriod")}</th>
-                  <th className="px-5 py-3 font-medium">{t("reports.colOrders")}</th>
-                  <th className="px-5 py-3 font-medium">{t("reports.colNetSales")}</th>
-                  <th className="px-5 py-3 font-medium">{t("reports.colGrandTotal")}</th>
-                  <th className="px-5 py-3 font-medium">{t("reports.colHpp")}</th>
-                  <th className="px-5 py-3 font-medium">{t("reports.colGrossProfit")}</th>
+                <tr className="border-b border-gray-200 text-left text-gray-500">
+                  {headers.map((h, i) => (
+                    <th key={h} className={`whitespace-nowrap px-3 py-3 font-medium ${i >= 9 ? "text-right" : ""}`}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={headers.length} className="px-5 py-10 text-center text-sm text-gray-400">
                       {t("inventory.noSalesInPeriod")}
                     </td>
                   </tr>
                 ) : (
-                  <>
-                    {rows.map((row) => (
-                      <tr key={row.period} className="border-b border-gray-50 last:border-0">
-                        <td className="px-5 py-3 font-medium text-gray-900">
-                          {formatPeriod(row.period, view, locale)}
-                        </td>
-                        <td className="px-5 py-3 text-gray-700">{row.orderCount}</td>
-                        <td className="px-5 py-3 text-gray-700">{formatRp(row.netSales)}</td>
-                        <td className="px-5 py-3 text-gray-700">{formatRp(row.grandTotal)}</td>
-                        <td className="px-5 py-3 text-gray-700">{formatRp(row.totalHpp)}</td>
-                        <td className="px-5 py-3 font-medium text-gray-900">
-                          {formatRp(row.grossProfit)}
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="border-t border-gray-200 bg-gray-50/60">
-                      <td className="px-5 py-3 font-semibold text-gray-900">{t("reports.totalRow")}</td>
-                      <td className="px-5 py-3 font-semibold text-gray-900">{totals.orderCount}</td>
-                      <td className="px-5 py-3 font-semibold text-gray-900">{formatRp(totals.netSales)}</td>
-                      <td className="px-5 py-3 font-semibold text-gray-900">{formatRp(totals.grandTotal)}</td>
-                      <td className="px-5 py-3 font-semibold text-gray-900">{formatRp(totals.totalHpp)}</td>
-                      <td className="px-5 py-3 font-semibold text-gray-900">{formatRp(totals.grossProfit)}</td>
+                  rows.map((r, i) => (
+                    <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60">
+                      <td className="whitespace-nowrap px-3 py-2 text-gray-700">{formatReportDate(r.salesDate, locale)}</td>
+                      <td className="px-3 py-2 tabular-nums text-gray-700">{r.salesTime}</td>
+                      <td className="px-3 py-2 text-gray-600">{mealTimeLabel(t, r.mealTime)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-gray-600">{r.branch}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-gray-600">{salesTypeLabel(t, r.salesType)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-900">{r.menu}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-gray-500">{r.menuCode}</td>
+                      <td className="px-3 py-2 text-gray-600">{r.menuCategory}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-gray-600">{r.menuCategoryDetail}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{rp(r.price)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.qty}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{rp(r.subtotal)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{rp(r.menuDiscount)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{rp(r.billDiscount)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{rp(r.nettSales)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{rp(r.serviceCharge)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{rp(r.tax)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{rp(r.vat)}</td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">{rp(r.grandTotal)}</td>
                     </tr>
-                  </>
+                  ))
                 )}
               </tbody>
             </table>

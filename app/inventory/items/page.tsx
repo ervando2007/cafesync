@@ -7,6 +7,7 @@ import {
   getUnits,
   summarizeStockItems,
 } from "@/lib/inventory";
+import { getAccounts } from "@/lib/accounting";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { InventoryStatCard } from "@/app/ui/inventory/stat-card";
 import { ItemsTable } from "@/app/ui/inventory/items-table";
@@ -50,13 +51,15 @@ export default async function InventoryItemsPage({
       ? Number(params.outlet)
       : (outlets[0]?.id ?? 0);
 
-  const [items, movements, units, categories] = await Promise.all([
+  const [items, movements, units, categories, accounts] = await Promise.all([
     getStockItems(selectedOutletId),
     getRecentMovements(selectedOutletId),
     getUnits(),
     getCategories(),
+    getAccounts(),
   ]);
   const summary = summarizeStockItems(items);
+  const expenseAccounts = accounts.filter((a) => a.accountType === "EXPENSE");
 
   return (
     <>
@@ -97,7 +100,7 @@ export default async function InventoryItemsPage({
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
-        <ItemsTable items={items} units={units} categories={categories} />
+        <ItemsTable items={items} units={units} categories={categories} expenseAccounts={expenseAccounts} />
 
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-gray-900">{t("inventory.recentTransactions")}</h2>

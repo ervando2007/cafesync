@@ -12,6 +12,7 @@ import { SelectModal } from "@/app/ui/order/select-modal";
 import { SiteFooter } from "@/app/ui/order/site-footer";
 import { placeOrder, type CustomerOrderType } from "@/app/order/actions";
 import type { MenuItem, PublicOutlet, PublicTable } from "@/lib/customer-menu";
+import { pricingChannelFor, type PricingChannel } from "@/lib/pricing-channel";
 import { useI18n } from "@/app/i18n-provider";
 
 const ALL_MENU = "All Menu";
@@ -34,7 +35,7 @@ export interface CartLine {
 }
 
 export interface OutletBundle {
-  catalog: MenuItem[];
+  catalogByChannel: Partial<Record<PricingChannel, MenuItem[]>>;
   tables: PublicTable[];
 }
 
@@ -67,7 +68,7 @@ export function CustomerMenu({
   const [isPending, startTransition] = useTransition();
 
   const bundle = outletId !== null ? outletData[outletId] : undefined;
-  const catalog = bundle?.catalog ?? EMPTY_CATALOG;
+  const catalog = bundle?.catalogByChannel[pricingChannelFor(orderType)] ?? EMPTY_CATALOG;
   const tables = bundle?.tables ?? EMPTY_TABLES;
 
   const outlet = outlets.find((o) => o.id === outletId) ?? null;
