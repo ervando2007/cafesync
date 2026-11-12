@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,6 +10,35 @@ import { SidebarNav } from "@/app/ui/sidebar-nav";
 import { navItemsForMenuKeys } from "@/app/ui/sidebar-nav-items";
 import { MenuIcon, XIcon } from "@/app/ui/dashboard/icons";
 import { useI18n } from "@/app/i18n-provider";
+
+const COLLAPSE_KEY = "cafesync:sidebar-collapsed";
+const COLLAPSE_EVENT = "cafesync:sidebar-collapsed-change";
+
+function subscribeCollapsed(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(COLLAPSE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(COLLAPSE_EVENT, callback);
+  };
+}
+
+function readCollapsed() {
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeCollapsed(value: boolean) {
+  try {
+    window.localStorage.setItem(COLLAPSE_KEY, value ? "1" : "0");
+  } catch {
+    // ignore storage errors
+  }
+  window.dispatchEvent(new Event(COLLAPSE_EVENT));
+}
 
 export function SidebarShell({
   subtitle,
@@ -31,6 +60,7 @@ export function SidebarShell({
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [lastPathname, setLastPathname] = useState(pathname);
+  const isCollapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
 
   if (pathname !== lastPathname) {
@@ -67,10 +97,27 @@ export function SidebarShell({
         />
       )}
 
+      {isCollapsed && (
+        <div className="sticky top-0 hidden h-screen w-14 shrink-0 flex-col items-center gap-4 self-start bg-[#1b140f] py-6 text-white lg:flex">
+          <button
+            type="button"
+            onClick={() => writeCollapsed(false)}
+            aria-label="Show sidebar"
+            title="Show sidebar"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/70 hover:bg-white/10"
+          >
+            <MenuIcon className="h-5 w-5" />
+          </button>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400">
+            <CoffeeCupIcon className="h-5 w-5" />
+          </span>
+        </div>
+      )}
+
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col bg-[#1b140f] text-white transition-transform duration-200 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:flex lg:translate-x-0 lg:self-start ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col bg-[#1b140f] text-white transition-transform duration-200 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 lg:self-start ${
           isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        } ${isCollapsed ? "lg:hidden" : "lg:flex"}`}
       >
         <div className="flex items-center justify-between px-5 py-6">
           <div className="flex items-center gap-2.5">
@@ -92,10 +139,23 @@ export function SidebarShell({
           >
             <XIcon className="h-4.5 w-4.5" />
           </button>
-          <MenuIcon className="hidden h-4.5 w-4.5 text-white/50 lg:block" />
+          <button
+            type="button"
+            onClick={() => writeCollapsed(true)}
+            aria-label="Hide sidebar"
+            title="Hide sidebar"
+            className="hidden h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white lg:flex"
+          >
+            <MenuIcon className="h-4.5 w-4.5" />
+          </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3">
+        <nav
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("a")) writeCollapsed(true);
+          }}
+          className="flex-1 space-y-1 overflow-y-auto px-3"
+        >
           <SidebarNav items={navItems} />
         </nav>
 

@@ -1,4 +1,4 @@
-import { ArrowRightIcon, BeanIcon, BottleIcon, CupIcon } from "@/app/ui/dashboard/icons";
+import { BeanIcon, BottleIcon, CupIcon } from "@/app/ui/dashboard/icons";
 import type { StockAlertItem } from "@/lib/dashboard-data";
 import type { TranslateFn } from "@/lib/i18n/translate";
 
@@ -22,16 +22,7 @@ const STATUS_KEYS: Record<StockAlertItem["status"], "dashboard.statusLowStock" |
 export function StockAlert({ data, t }: { data: StockAlertItem[]; t: TranslateFn }) {
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-900">{t("dashboard.stockAlert")}</h2>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm font-medium text-amber-700 hover:text-amber-800"
-        >
-          {t("dashboard.viewAll")}
-          <ArrowRightIcon className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      <h2 className="text-base font-semibold text-gray-900">{t("dashboard.stockAlert")}</h2>
 
       <ul className="mt-4 space-y-3.5">
         {data.map((item) => {

@@ -1,4 +1,4 @@
-import { ArrowRightIcon, WalletIcon } from "@/app/ui/dashboard/icons";
+import { WalletIcon } from "@/app/ui/dashboard/icons";
 import type { CashFlowSummary as CashFlowData } from "@/lib/dashboard-data";
 import type { TranslateFn } from "@/lib/i18n/translate";
 
@@ -30,14 +30,6 @@ export function CashFlowSummary({ data, t }: { data: CashFlowData; t: TranslateF
             <p className="mt-1 text-sm font-semibold text-gray-900">{data.closing}</p>
           </div>
         </div>
-
-        <button
-          type="button"
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          {t("dashboard.viewCashFlowReport")}
-          <ArrowRightIcon className="h-3.5 w-3.5" />
-        </button>
       </div>
     </div>
   );

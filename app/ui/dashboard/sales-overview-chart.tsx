@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ChevronDownIcon } from "@/app/ui/icons";
 import type { SalesPoint } from "@/lib/dashboard-data";
 import { useI18n } from "@/app/i18n-provider";
 
@@ -79,13 +78,9 @@ export function SalesOverviewChart({ data }: { data: SalesPoint[] }) {
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-900">{t("dashboard.salesOverview")}</h2>
-        <button
-          type="button"
-          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
-        >
+        <span className="shrink-0 whitespace-nowrap rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs text-gray-500">
           {t("dashboard.daily")}
-          <ChevronDownIcon className="h-3.5 w-3.5 text-gray-400" />
-        </button>
+        </span>
       </div>
 
       <div className="mt-1 flex items-center gap-4 text-xs text-gray-500">

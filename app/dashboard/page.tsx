@@ -74,10 +74,8 @@ export default async function DashboardPage() {
   return (
     <>
       <DashboardTopbar
-        t={t}
         title={t("nav.dashboard")}
         subtitle={t("dashboard.welcomeBack", { name: firstName })}
-        notificationCount={8}
       />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6 sm:p-8">

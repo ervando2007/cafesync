@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useI18n } from "@/app/i18n-provider";
 import { PosHeader } from "@/app/ui/pos/header";
 import { ProductGrid } from "@/app/ui/pos/product-grid";
@@ -24,6 +24,8 @@ import type {
   OutletOption,
 } from "@/lib/pos";
 import { pricingChannelFor, type PricingChannel } from "@/lib/pricing-channel";
+
+const HELD_POLL_MS = 10_000;
 
 export interface OutletBundle {
   catalogByChannel: Record<PricingChannel, CatalogProduct[]>;
@@ -181,6 +183,40 @@ export function PosTerminal({
       },
     }));
   }
+
+  // Orders can arrive from outside this till (customer QR orders, another
+  // cashier), so poll the held list + table status while the POS is visible,
+  // and refresh immediately when the tab regains focus.
+  useEffect(() => {
+    let cancelled = false;
+    async function pollHeld() {
+      if (document.visibilityState !== "visible") return;
+      const [held, tables] = await Promise.all([
+        refreshHeldOrders(outletId),
+        refreshTables(outletId),
+      ]);
+      if (cancelled) return;
+      setData((prev) =>
+        prev[outletId]
+          ? {
+              ...prev,
+              [outletId]: {
+                ...prev[outletId],
+                heldOrders: held,
+                tables: tables ?? prev[outletId].tables,
+              },
+            }
+          : prev,
+      );
+    }
+    const timer = window.setInterval(pollHeld, HELD_POLL_MS);
+    document.addEventListener("visibilitychange", pollHeld);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", pollHeld);
+    };
+  }, [outletId]);
 
   function handleReleaseTable(id: number) {
     startTransition(async () => {

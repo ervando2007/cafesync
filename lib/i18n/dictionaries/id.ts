@@ -732,7 +732,7 @@ export const id: typeof en = {
     languageDesc: "Pilih bahasa yang Anda inginkan untuk antarmuka.",
   },
   unauthorized: {
-    roleNotSupported: "Peran belum didukung",
+    roleNotSupported: "Mohon tunggu persetujuan kami untuk bergabung atau hubungi administrator kami",
     signedInAs: "Masuk sebagai {email}. Peran Anda belum memiliki akses ke modul apa pun.",
     needSignIn: "Anda perlu masuk untuk melanjutkan.",
     signOut: "Keluar",

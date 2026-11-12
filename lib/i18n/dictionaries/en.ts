@@ -730,7 +730,7 @@ export const en = {
     languageDesc: "Choose your preferred language for the interface.",
   },
   unauthorized: {
-    roleNotSupported: "Role not supported yet",
+    roleNotSupported: "Please wait for our approval to join or contact our administrator",
     signedInAs: "Signed in as {email}. Your role doesn't have access to any module yet.",
     needSignIn: "You need to sign in to continue.",
     signOut: "Sign Out",

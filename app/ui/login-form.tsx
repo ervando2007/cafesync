@@ -48,7 +48,7 @@ export function LoginForm() {
 
   function handleGoogleSignIn() {
     setIsGoogleLoading(true);
-    signIn("google", { callbackUrl: "/dashboard" });
+    signIn("google", { callbackUrl: "/post-login" });
   }
 
   return (

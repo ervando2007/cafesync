@@ -12,6 +12,7 @@ import {
   linkGoogleAccount,
   touchLastLogin,
 } from "@/lib/users";
+import { SESSION_IDLE_SECONDS } from "@/lib/session-config";
 
 const credentialsSchema = z.object({
   email: z.email(),
@@ -19,7 +20,9 @@ const credentialsSchema = z.object({
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
+  // Rolling idle timeout: the JWT cookie expires SESSION_IDLE_SECONDS after the
+  // last time it was re-issued (every /api/auth/session hit refreshes it).
+  session: { strategy: "jwt", maxAge: SESSION_IDLE_SECONDS },
   pages: { signIn: "/" },
   providers: [
     Credentials({
@@ -55,6 +58,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      // Always show Google's account chooser so a user who signed out can
+      // switch to a different Google account instead of being silently
+      // signed back in with the same one.
+      authorization: { params: { prompt: "select_account" } },
     }),
   ],
   callbacks: {
