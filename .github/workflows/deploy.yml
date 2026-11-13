@@ -25,10 +25,10 @@ jobs:
             echo "Deploying CafeSync"
             echo "================================"
 
-            cd /home/andryboy/projects/nextjs/cafesync
+            cd ~/projects/nextjs/cafesync-app
 
             echo "Pull latest source..."
-            git pull origin main
+            git pull --ff-only origin main
 
             echo "Installing dependencies..."
             npm install
@@ -36,8 +36,19 @@ jobs:
             echo "Building Next.js..."
             npm run build
 
-            echo "Restarting PM2..."
-            sudo systemctl restart cafesync
+            # Restart right after the build: the running server still holds the
+            # old build in memory and serves 404s/errors against the new .next.
+            # Needs a sudoers rule on the VPS:
+            #   andryboy ALL=(root) NOPASSWD: /usr/bin/systemctl restart cafesync
+            echo "Restarting cafesync.service..."
+            sudo -n /usr/bin/systemctl restart cafesync
+
+            echo "Waiting for the app to answer..."
+            for i in $(seq 1 20); do
+              curl -sf -o /dev/null http://127.0.0.1:3000/ && break
+              sleep 3
+            done
+            curl -sf -o /dev/null http://127.0.0.1:3000/
 
             echo "================================"
             echo "Deployment completed"
