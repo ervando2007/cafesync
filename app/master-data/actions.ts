@@ -17,7 +17,7 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 const ALLOWED_ROLES = ["ADMIN", "GM"];
-const COA_ROLES = ["ADMIN", "ACCOUNTING"];
+const COA_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
 const ACCOUNT_TYPES: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
 
 export interface ActionResult {

@@ -13,7 +13,7 @@ function rp(value: number) {
 
 /** COA per outlet, like Journal Entries: one outlet at a time, no combined view. */
 export default async function ChartOfAccountsPage({ searchParams }: { searchParams: Promise<{ outlet?: string }> }) {
-  const session = await requireRole(["ADMIN", "ACCOUNTING"]);
+  const session = await requireRole(["ADMIN", "GM", "ACCOUNTING"]);
   const { t } = await getT();
   const params = await searchParams;
   const outlets = await getOutletsForUser(session);
