@@ -7,7 +7,7 @@ import type { MenuItemRecord, PermissionPair, RoleRecord } from "@/lib/menu-perm
 import { useI18n } from "@/app/i18n-provider";
 import type { TranslateFn } from "@/lib/i18n/translate";
 
-const MENU_KEY_TO_NAV_KEY: Record<string, "nav.dashboard" | "nav.pos" | "nav.inventory" | "nav.masterData" | "nav.accounting" | "nav.settings" | "nav.reports"> = {
+const MENU_KEY_TO_NAV_KEY: Record<string, "nav.dashboard" | "nav.pos" | "nav.inventory" | "nav.masterData" | "nav.accounting" | "nav.settings" | "nav.reports" | "nav.attendance"> = {
   dashboard: "nav.dashboard",
   pos: "nav.pos",
   inventory: "nav.inventory",
@@ -15,6 +15,7 @@ const MENU_KEY_TO_NAV_KEY: Record<string, "nav.dashboard" | "nav.pos" | "nav.inv
   accounting: "nav.accounting",
   settings: "nav.settings",
   reports: "nav.reports",
+  attendance: "nav.attendance",
 };
 
 function menuLabel(m: MenuItemRecord, t: TranslateFn): string {

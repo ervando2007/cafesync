@@ -1,6 +1,7 @@
 import {
   BoxIcon,
   CalculatorIcon,
+  ClockIcon,
   DatabaseIcon,
   GridIcon,
   ReportIcon,
@@ -14,6 +15,7 @@ function navItemsByMenuKey(t: TranslateFn): { key: string; item: SidebarNavItem 
   return [
     { key: "dashboard", item: { label: t("nav.dashboard"), icon: GridIcon, href: "/dashboard" } },
     { key: "pos", item: { label: t("nav.pos"), icon: ShoppingCartIcon, href: "/pos" } },
+    { key: "attendance", item: { label: t("nav.attendance"), icon: ClockIcon, href: "/attendance" } },
     {
       key: "inventory",
       item: {
@@ -60,6 +62,7 @@ function navItemsByMenuKey(t: TranslateFn): { key: string; item: SidebarNavItem 
           { label: t("nav.generalLedger"), href: "/reports/general-ledger" },
           { label: t("nav.ledgerSummary"), href: "/reports/ledger-summary" },
           { label: t("nav.masterMenu"), href: "/reports/master-menu" },
+          { label: t("nav.attendanceReport"), href: "/reports/attendance" },
         ],
       },
     },
@@ -68,7 +71,10 @@ function navItemsByMenuKey(t: TranslateFn): { key: string; item: SidebarNavItem 
       item: {
         label: t("nav.settings"),
         icon: SettingsIcon,
-        children: [{ label: t("nav.userManagement"), href: "/settings/users" }],
+        children: [
+          { label: t("nav.userManagement"), href: "/settings/users" },
+          { label: t("nav.attendanceDevices"), href: "/settings/attendance-devices" },
+        ],
       },
     },
   ];

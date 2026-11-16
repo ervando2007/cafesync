@@ -28,6 +28,7 @@ export function UserFormModal({
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
+  const [attendancePin, setAttendancePin] = useState(user?.attendancePin ?? "");
   const [roleIds, setRoleIds] = useState<number[]>(user?.roles.map((r) => r.id) ?? []);
   const [outletIds, setOutletIds] = useState<number[]>(user?.outlets.map((o) => o.id) ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export function UserFormModal({
 
   function handleSubmit() {
     setError(null);
-    const input = { name, email, roleIds, outletIds };
+    const input = { name, email, roleIds, outletIds, attendancePin };
 
     startTransition(async () => {
       const result =
@@ -124,6 +125,19 @@ export function UserFormModal({
               />
             </div>
           )}
+
+          <div>
+            <label className="text-xs text-gray-500">{t("settings.attendancePin")}</label>
+            <input
+              value={attendancePin}
+              inputMode="numeric"
+              maxLength={20}
+              onChange={(e) => setAttendancePin(e.target.value.replace(/\D/g, ""))}
+              placeholder={t("settings.attendancePinPlaceholder")}
+              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-gray-400">{t("settings.attendancePinHint")}</p>
+          </div>
 
           <div>
             <label className="text-xs text-gray-500">{t("settings.roles")}</label>

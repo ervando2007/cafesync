@@ -23,17 +23,31 @@ function isDuplicateEmailError(error: unknown): boolean {
   );
 }
 
+/** ER_DUP_ENTRY on the attendance PIN unique key (vs. the email one). */
+function isDuplicatePinError(error: unknown): boolean {
+  return isDuplicateEmailError(error) && String((error as { message?: string }).message ?? "").includes("uq_users_attendance_pin");
+}
+
+/** Fingerspot user PIN: digits only, empty = not linked to a machine. */
+function cleanPin(pin: string | undefined): string | null {
+  const v = (pin ?? "").trim();
+  return v || null;
+}
+
 interface UserInput {
   name: string;
   email: string;
   roleIds: number[];
   outletIds: number[];
+  attendancePin?: string;
 }
 
 function validateUserInput(input: UserInput, t: TranslateFn): string | null {
   if (!input.name.trim()) return t("inventory.errNameRequired");
   if (!input.email.trim() || !input.email.includes("@")) return t("settings.errValidEmailRequired");
   if (input.roleIds.length === 0) return t("settings.errSelectAtLeastOneRole");
+  const pin = cleanPin(input.attendancePin);
+  if (pin && !/^\d{1,20}$/.test(pin)) return t("settings.errPinInvalid");
   return null;
 }
 
@@ -79,8 +93,8 @@ export async function createUser(
     const passwordHash = await bcrypt.hash(input.password, 10);
 
     const [result] = await conn.query(
-      "INSERT INTO users (name, email, password_hash, status) VALUES (?, ?, ?, 'ACTIVE')",
-      [input.name.trim(), input.email.trim(), passwordHash],
+      "INSERT INTO users (name, email, password_hash, attendance_pin, status) VALUES (?, ?, ?, ?, 'ACTIVE')",
+      [input.name.trim(), input.email.trim(), passwordHash, cleanPin(input.attendancePin)],
     );
     const userId = (result as { insertId: number }).insertId;
 
@@ -90,6 +104,9 @@ export async function createUser(
     return { ok: true };
   } catch (error) {
     await conn.rollback();
+    if (isDuplicatePinError(error)) {
+      return { ok: false, message: t("settings.errPinExists") };
+    }
     if (isDuplicateEmailError(error)) {
       return { ok: false, message: t("settings.errEmailExists") };
     }
@@ -122,8 +139,8 @@ export async function updateUser(input: UserInput & { id: number }): Promise<Act
     await conn.beginTransaction();
 
     const [result] = await conn.query(
-      "UPDATE users SET name = ?, email = ? WHERE id = ?",
-      [input.name.trim(), input.email.trim(), input.id],
+      "UPDATE users SET name = ?, email = ?, attendance_pin = ? WHERE id = ?",
+      [input.name.trim(), input.email.trim(), cleanPin(input.attendancePin), input.id],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       await conn.rollback();
@@ -136,6 +153,9 @@ export async function updateUser(input: UserInput & { id: number }): Promise<Act
     return { ok: true };
   } catch (error) {
     await conn.rollback();
+    if (isDuplicatePinError(error)) {
+      return { ok: false, message: t("settings.errPinExists") };
+    }
     if (isDuplicateEmailError(error)) {
       return { ok: false, message: t("settings.errEmailExists") };
     }
