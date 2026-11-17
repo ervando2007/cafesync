@@ -5,10 +5,8 @@ import { useI18n } from "@/app/i18n-provider";
 
 export function WelcomeBanner({
   outletName,
-  onChangeOutlet,
 }: {
-  outletName: string | null;
-  onChangeOutlet: () => void;
+  outletName: string;
 }) {
   const { t } = useI18n();
   return (
@@ -28,16 +26,9 @@ export function WelcomeBanner({
           <p className="text-xs text-gray-400">{t("pos.outlet")}</p>
           <p className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
             <MapPinIcon className="h-4 w-4 text-amber-700" />
-            {outletName ?? t("order.selectAnOutlet")}
+            {outletName}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onChangeOutlet}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
-        >
-          {t("order.change")}
-        </button>
       </div>
     </div>
   );

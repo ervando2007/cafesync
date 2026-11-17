@@ -1,23 +1,37 @@
 import { requireRole } from "@/lib/auth-guard";
 import { getAllUsersForAdmin } from "@/lib/users";
-import { getOutletsForManagement } from "@/lib/outlets";
+import { getAllOutlets } from "@/lib/outlets";
 import { getMenuItems, getPermissionMatrix, getRoles } from "@/lib/menu-permissions";
 import { UsersTable } from "@/app/ui/settings/users-table";
 import { PermissionMatrix } from "@/app/ui/settings/permission-matrix";
 import { getT } from "@/lib/i18n/server";
+import {
+  allSubGm,
+  isFullUserAdmin,
+  SUB_GM_ROLE_CODES,
+  USER_MANAGER_ROLES,
+} from "@/lib/user-admin-scope";
 import { PageHeader } from "@/app/ui/page-header";
 
 export default async function UserManagementPage() {
-  const session = await requireRole(["ADMIN"]);
+  const session = await requireRole(USER_MANAGER_ROLES);
   const { t } = await getT();
+  const fullAdmin = isFullUserAdmin(session);
+  const currentUserId = Number(session.user.id);
 
-  const [users, outlets, roles, menuItems, permissions] = await Promise.all([
+  const [allUsers, outlets, allRoles, menuItems, permissions] = await Promise.all([
     getAllUsersForAdmin(),
-    getOutletsForManagement(session),
+    getAllOutlets(),
     getRoles(),
     getMenuItems(),
     getPermissionMatrix(),
   ]);
+
+  // USER_ADMIN only sees and assigns roles below GM (actions enforce the same).
+  const users = fullAdmin
+    ? allUsers
+    : allUsers.filter((u) => u.id !== currentUserId && allSubGm(u.roles.map((r) => r.code)));
+  const roles = fullAdmin ? allRoles : allRoles.filter((r) => SUB_GM_ROLE_CODES.includes(r.code));
 
   return (
     <>
@@ -28,12 +42,14 @@ export default async function UserManagementPage() {
           users={users}
           roles={roles}
           outlets={outlets}
-          currentUserId={Number(session.user.id)}
+          currentUserId={currentUserId}
         />
 
-        <div className="mt-6">
-          <PermissionMatrix roles={roles} menuItems={menuItems} permissions={permissions} />
-        </div>
+        {fullAdmin && (
+          <div className="mt-6">
+            <PermissionMatrix roles={allRoles} menuItems={menuItems} permissions={permissions} />
+          </div>
+        )}
       </div>
     </>
   );

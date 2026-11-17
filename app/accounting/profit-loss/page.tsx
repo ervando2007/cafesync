@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import { getProfitAndLoss } from "@/lib/accounting";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
@@ -7,8 +6,8 @@ import { InventoryStatCard } from "@/app/ui/inventory/stat-card";
 import { DollarSignIcon, ReceiptIcon, TrendingUpIcon } from "@/app/ui/dashboard/icons";
 import { getT } from "@/lib/i18n/server";
 import { PageHeader } from "@/app/ui/page-header";
+import { requireMenu } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -28,7 +27,7 @@ export default async function ProfitLossPage({
 }: {
   searchParams: Promise<{ outlet?: string; from?: string; to?: string }>;
 }) {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("accounting");
   const { t } = await getT();
   const outlets = await getOutletsForUser(session);
   const params = await searchParams;

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth-guard";
 import { findUserById } from "@/lib/users";
 import { resolveDisplayIdentity } from "@/lib/role-labels";
-import { getLandingPath } from "@/lib/role-routes";
+import { landingPathFor } from "@/lib/landing";
 import { CoffeeCupIcon } from "@/app/ui/icons";
 import { ChevronLeftIcon } from "@/app/ui/pos/icons";
 import { AvatarUploader } from "@/app/ui/profile/avatar-uploader";
@@ -16,7 +16,7 @@ export default async function ProfilePage() {
   const { t } = await getT();
   const user = await findUserById(session.user.id);
   const { userRole } = resolveDisplayIdentity(session);
-  const backHref = getLandingPath(session.user.roles);
+  const backHref = await landingPathFor(session);
 
   if (!user) return null;
 

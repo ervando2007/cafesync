@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import { getStockItemOptions } from "@/lib/inventory";
 import {
@@ -11,13 +10,14 @@ import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { RecipeManager } from "@/app/ui/inventory/recipe-manager";
 import { getT } from "@/lib/i18n/server";
 import { PageHeader } from "@/app/ui/page-header";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function RecipePage({
   searchParams,
 }: {
   searchParams: Promise<{ outlet?: string }>;
 }) {
-  const session = await requireRole(["ADMIN", "GM", "MANAGER"]);
+  const session = await requireMenu("inventory");
   const { t } = await getT();
   const outlets = await getOutletsForUser(session);
   const params = await searchParams;

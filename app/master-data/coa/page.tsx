@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getAllAccountsForManagement } from "@/lib/accounting";
 import { getOpeningBalanceCheck } from "@/lib/opening-balances";
 import { getOutletsForUser } from "@/lib/pos";
@@ -6,6 +5,8 @@ import { CoaTable } from "@/app/ui/master-data/coa-table";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { getT } from "@/lib/i18n/server";
 import { PageHeader } from "@/app/ui/page-header";
+import { requireMenu } from "@/lib/menu-access";
+import { SUBMENU_ROLES } from "@/lib/menu-rules";
 
 function rp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -13,7 +14,7 @@ function rp(value: number) {
 
 /** COA per outlet, like Journal Entries: one outlet at a time, no combined view. */
 export default async function ChartOfAccountsPage({ searchParams }: { searchParams: Promise<{ outlet?: string }> }) {
-  const session = await requireRole(["ADMIN", "GM", "ACCOUNTING"]);
+  const session = await requireMenu("master_data", SUBMENU_ROLES["master_data.coa"]);
   const { t } = await getT();
   const params = await searchParams;
   const outlets = await getOutletsForUser(session);

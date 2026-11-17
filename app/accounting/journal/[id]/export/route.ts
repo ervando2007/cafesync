@@ -1,13 +1,13 @@
 import { hasOutletAccess } from "@/lib/auth-guard";
 import { getJournalEntryById } from "@/lib/accounting";
 import { formatReportDate } from "@/lib/report-labels";
-import { ACCOUNTING_REPORT_ROLES, authorizeExport } from "@/lib/report-route";
 import { applyBaseFont, newWorkbook, RP_FORMAT, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
+import { authorizeMenuRoute } from "@/lib/menu-access";
 
 /** One journal voucher in the "JURNAL UMUM" layout of RULES SISTEM CAFE.xlsx. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await authorizeExport(ACCOUNTING_REPORT_ROLES);
+  const session = await authorizeMenuRoute("accounting");
   if (session instanceof Response) return session;
 
   const entry = await getJournalEntryById(Number((await params).id));

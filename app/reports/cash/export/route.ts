@@ -7,5 +7,6 @@ export async function GET(request: Request) {
     titleKey: "reports.cashStatementTitle",
     allAccountsKey: "reports.allBankAccounts",
     filePrefix: "cash-report",
+    menuKey: "reports.cash",
   });
 }

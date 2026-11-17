@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { resolveLedgerScope } from "@/lib/ledger";
 import { getSalesRecap, MEAL_TIMES, parseSalesRecapParams, SALES_TYPES } from "@/lib/sales-report";
 import { mealTimeLabel, salesRecapHeaders, salesTypeLabel } from "@/lib/sales-report-labels";
@@ -8,8 +7,8 @@ import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
 import { ParamSelect, ReportDownload, TimeRangeSelect } from "@/app/ui/reports/report-filters";
 import { PageHeader } from "@/app/ui/page-header";
 import { getT } from "@/lib/i18n/server";
+import { requireMenu } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "ACCOUNTING"];
 
 function rp(value: number) {
   return Math.round(value).toLocaleString("id-ID");
@@ -27,7 +26,7 @@ type SalesSearchParams = {
 };
 
 export default async function SalesReportPage({ searchParams }: { searchParams: Promise<SalesSearchParams> }) {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("reports.sales");
   const { t, locale } = await getT();
   const params = await searchParams;
   const scope = await resolveLedgerScope(session, params.outlet, t("reports.allOutlets"));

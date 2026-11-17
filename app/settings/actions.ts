@@ -2,12 +2,49 @@
 
 import bcrypt from "bcryptjs";
 import type { RowDataPacket } from "mysql2";
+import type { Session } from "next-auth";
 import { requireRole } from "@/lib/auth-guard";
 import pool from "@/lib/db";
 import { getT } from "@/lib/i18n/server";
 import type { TranslateFn } from "@/lib/i18n/translate";
+import { needsOutletAssignment } from "@/lib/role-scope";
+import {
+  allSubGm,
+  canManageUser,
+  isFullUserAdmin,
+  roleCodesForIds,
+  USER_MANAGER_ROLES,
+} from "@/lib/user-admin-scope";
 
 const ALLOWED_ROLES = ["ADMIN"];
+
+/**
+ * USER_ADMIN limits: the target user (if any) must be one it may manage, and
+ * every role being assigned must be below GM. ADMIN passes unrestricted.
+ */
+async function userScopeError(
+  session: Session,
+  t: TranslateFn,
+  opts: { targetUserId?: number; roleIds?: number[] },
+): Promise<string | null> {
+  if (isFullUserAdmin(session)) return null;
+  if (opts.targetUserId !== undefined && !(await canManageUser(session, opts.targetUserId))) {
+    return t("settings.errCannotManageUser");
+  }
+  if (opts.roleIds) {
+    const codes = await roleCodesForIds(opts.roleIds);
+    if (!codes || !allSubGm(codes)) return t("settings.errRoleNotAssignable");
+  }
+  return null;
+}
+
+/** Manager / Accounting / Cashier only see assigned outlets, so they need one. */
+async function outletAssignmentError(input: UserInput, t: TranslateFn): Promise<string | null> {
+  const codes = (await roleCodesForIds(input.roleIds)) ?? [];
+  return needsOutletAssignment(codes) && input.outletIds.length === 0
+    ? t("settings.errSelectOutlet")
+    : null;
+}
 
 export interface ActionResult {
   ok: boolean;
@@ -79,10 +116,14 @@ async function syncUserRolesAndOutlets(
 export async function createUser(
   input: UserInput & { password: string },
 ): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  const session = await requireRole(USER_MANAGER_ROLES);
   const { t } = await getT();
   const validationError = validateUserInput(input, t);
   if (validationError) return { ok: false, message: validationError };
+  const scopeError =
+    (await userScopeError(session, t, { roleIds: input.roleIds })) ??
+    (await outletAssignmentError(input, t));
+  if (scopeError) return { ok: false, message: scopeError };
   if (input.password.length < 6) {
     return { ok: false, message: t("settings.errPasswordMinLength") };
   }
@@ -118,10 +159,14 @@ export async function createUser(
 }
 
 export async function updateUser(input: UserInput & { id: number }): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireRole(USER_MANAGER_ROLES);
   const { t } = await getT();
   const validationError = validateUserInput(input, t);
   if (validationError) return { ok: false, message: validationError };
+  const scopeError =
+    (await userScopeError(session, t, { targetUserId: input.id, roleIds: input.roleIds })) ??
+    (await outletAssignmentError(input, t));
+  if (scopeError) return { ok: false, message: scopeError };
 
   const isSelf = Number(session.user.id) === input.id;
   if (isSelf) {
@@ -170,8 +215,10 @@ export async function resetUserPassword(input: {
   id: number;
   password: string;
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  const session = await requireRole(USER_MANAGER_ROLES);
   const { t } = await getT();
+  const scopeError = await userScopeError(session, t, { targetUserId: input.id });
+  if (scopeError) return { ok: false, message: scopeError };
   if (input.password.length < 6) {
     return { ok: false, message: t("settings.errPasswordMinLength") };
   }
@@ -196,11 +243,13 @@ export async function setUserStatus(input: {
   id: number;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireRole(USER_MANAGER_ROLES);
   const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
     return { ok: false, message: t("inventory.errInvalidStatus") };
   }
+  const scopeError = await userScopeError(session, t, { targetUserId: input.id });
+  if (scopeError) return { ok: false, message: scopeError };
   if (Number(session.user.id) === input.id && input.status === "INACTIVE") {
     return { ok: false, message: t("settings.errCannotDeactivateSelf") };
   }

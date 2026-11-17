@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getAccounts } from "@/lib/accounting";
 import { getLedgerHistory, resolveLedgerScope } from "@/lib/ledger";
 import {
@@ -9,12 +8,12 @@ import {
   sourceTypeLabel,
   today,
 } from "@/lib/report-labels";
-import { ACCOUNTING_REPORT_ROLES } from "@/lib/report-route";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
 import { AccountSelect, ReportDownload } from "@/app/ui/reports/report-filters";
 import { PageHeader } from "@/app/ui/page-header";
 import { getT } from "@/lib/i18n/server";
+import { requireMenu } from "@/lib/menu-access";
 
 function formatAmount(value: number) {
   return value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -25,7 +24,7 @@ export default async function GeneralLedgerPage({
 }: {
   searchParams: Promise<{ outlet?: string; from?: string; to?: string; account?: string }>;
 }) {
-  const session = await requireRole(ACCOUNTING_REPORT_ROLES);
+  const session = await requireMenu("reports.general_ledger");
   const { t, locale } = await getT();
   const params = await searchParams;
   const scope = await resolveLedgerScope(session, params.outlet, t("reports.allOutlets"));

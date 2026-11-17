@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import {
   getCategories,
@@ -16,6 +15,7 @@ import { AlertTriangleIcon } from "@/app/ui/inventory/icons";
 import { getT } from "@/lib/i18n/server";
 import type { TranslateFn } from "@/lib/i18n/translate";
 import { PageHeader } from "@/app/ui/page-header";
+import { requireMenu } from "@/lib/menu-access";
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -39,7 +39,7 @@ export default async function InventoryItemsPage({
 }: {
   searchParams: Promise<{ outlet?: string }>;
 }) {
-  const session = await requireRole(["ADMIN", "GM", "MANAGER"]);
+  const session = await requireMenu("inventory");
   const { t } = await getT();
   const MOVEMENT_LABEL = movementLabels(t);
   const outlets = await getOutletsForUser(session);

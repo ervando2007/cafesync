@@ -2,13 +2,13 @@
 
 import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
-import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
+import { hasOutletAccess } from "@/lib/auth-guard";
 import { getT } from "@/lib/i18n/server";
 import type { TranslateFn } from "@/lib/i18n/translate";
 import { getConvertibleUnits } from "@/lib/inventory";
 import { toStockFactor } from "@/lib/unit-conversion";
+import { requireMenu } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER"];
 
 export interface ActionResult {
   ok: boolean;
@@ -78,7 +78,7 @@ async function replaceRecipeItems(
 }
 
 export async function createRecipe(input: RecipeInput): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("inventory");
   const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
     return { ok: false, message: t("inventory.errNoOutletAccess") };
@@ -132,7 +132,7 @@ export async function createRecipe(input: RecipeInput): Promise<ActionResult> {
 export async function updateRecipe(
   input: Omit<RecipeInput, "productId"> & { recipeId: number },
 ): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("inventory");
   const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
     return { ok: false, message: t("inventory.errNoOutletAccess") };
@@ -180,7 +180,7 @@ export async function setRecipeStatus(input: {
   outletId: number;
   isActive: boolean;
 }): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("inventory");
   const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
     return { ok: false, message: t("inventory.errNoOutletAccess") };

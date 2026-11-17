@@ -1,10 +1,16 @@
 import { getActiveOutlets, getMenuCatalog, getTablesForOutlet } from "@/lib/customer-menu";
 import { CustomerMenu, type OutletBundle } from "@/app/ui/order/customer-menu";
+import { ScanQrNotice } from "@/app/ui/order/scan-qr-notice";
 
 // Customer self-ordering only ever needs these two price lists (never GRABFOOD —
 // that's a delivery-platform order, not something placed through this page).
 const CUSTOMER_CHANNELS = ["DINE_IN", "TAKEAWAY"] as const;
 
+/**
+ * Reached only through a printed QR: ?outlet=CODE (outlet QR) or
+ * ?outlet=CODE&table=CODE (table sticker). The outlet is fixed; there is no
+ * outlet picker, so a link without a valid outlet asks the guest to scan.
+ */
 export default async function OrderPage({
   searchParams,
 }: {
@@ -12,37 +18,33 @@ export default async function OrderPage({
 }) {
   const params = await searchParams;
   const outlets = await getActiveOutlets();
+  const outlet = params.outlet ? outlets.find((o) => o.code === params.outlet) : undefined;
+  if (!outlet) return <ScanQrNotice />;
 
-  const outletData: Record<number, OutletBundle> = {};
-  await Promise.all(
-    outlets.map(async (outlet) => {
-      const [catalogsByChannel, tables] = await Promise.all([
-        Promise.all(CUSTOMER_CHANNELS.map((channel) => getMenuCatalog(outlet.id, channel))),
-        getTablesForOutlet(outlet.id),
-      ]);
-      const catalogByChannel = Object.fromEntries(
-        CUSTOMER_CHANNELS.map((channel, i) => [channel, catalogsByChannel[i]]),
-      ) as OutletBundle["catalogByChannel"];
-      outletData[outlet.id] = { catalogByChannel, tables };
-    }),
-  );
+  const [catalogsByChannel, tables] = await Promise.all([
+    Promise.all(CUSTOMER_CHANNELS.map((channel) => getMenuCatalog(outlet.id, channel))),
+    getTablesForOutlet(outlet.id),
+  ]);
+  const bundle: OutletBundle = {
+    catalogByChannel: Object.fromEntries(
+      CUSTOMER_CHANNELS.map((channel, i) => [channel, catalogsByChannel[i]]),
+    ) as OutletBundle["catalogByChannel"],
+    tables,
+  };
 
-  const matchedOutlet = params.outlet
-    ? (outlets.find((o) => o.code === params.outlet) ?? null)
-    : null;
-  const initialOutletId = matchedOutlet?.id ?? null;
+  const lockedTable = params.table
+    ? tables.find((t) => t.code === params.table && t.status !== "INACTIVE")
+    : undefined;
 
-  const initialTableId =
-    matchedOutlet && params.table
-      ? (outletData[matchedOutlet.id]?.tables.find((t) => t.code === params.table)?.id ?? null)
-      : null;
+  const query = new URLSearchParams({ outlet: outlet.code });
+  if (lockedTable) query.set("table", lockedTable.code);
 
   return (
     <CustomerMenu
-      outlets={outlets}
-      outletData={outletData}
-      initialOutletId={initialOutletId}
-      initialTableId={initialTableId}
+      outlet={outlet}
+      bundle={bundle}
+      lockedTableId={lockedTable?.id ?? null}
+      menuHref={`/order?${query.toString()}`}
     />
   );
 }

@@ -2,6 +2,8 @@ import "server-only";
 import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
 import type { Session } from "next-auth";
+import { cache } from "react";
+import { SUBMENU_ROLES } from "@/lib/menu-rules";
 
 export interface MenuItemRecord {
   id: number;
@@ -39,8 +41,17 @@ export async function getPermissionMatrix(): Promise<PermissionPair[]> {
   return rows.map((r) => ({ roleId: Number(r.roleId), menuItemId: Number(r.menuItemId) }));
 }
 
-export async function getVisibleMenuKeys(session: Session): Promise<Set<string>> {
-  const roles = session.user.roles;
+/**
+ * Menu keys the session may see: matrix sections for its roles, plus each
+ * role-limited sub-menu key (lib/menu-rules.ts) the roles qualify for.
+ * Cached per request by role set — layouts, pages and guards all call it.
+ */
+export async function getVisibleMenuKeys(session: Session): Promise<ReadonlySet<string>> {
+  return loadVisibleMenuKeys([...session.user.roles].sort().join(","));
+}
+
+const loadVisibleMenuKeys = cache(async (rolesKey: string): Promise<ReadonlySet<string>> => {
+  const roles = rolesKey ? rolesKey.split(",") : [];
   if (!roles.length) return new Set();
 
   const [rows] = await pool.query<RowDataPacket[]>(
@@ -51,5 +62,9 @@ export async function getVisibleMenuKeys(session: Session): Promise<Set<string>>
      WHERE r.code IN (?)`,
     [roles],
   );
-  return new Set(rows.map((r) => String(r.menuKey)));
-}
+  const keys = new Set(rows.map((r) => String(r.menuKey)));
+  for (const [key, allowedRoles] of Object.entries(SUBMENU_ROLES)) {
+    if (roles.some((role) => (allowedRoles as readonly string[]).includes(role))) keys.add(key);
+  }
+  return keys;
+});

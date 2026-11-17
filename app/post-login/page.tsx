@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getLandingPath } from "@/lib/role-routes";
+import { landingPathFor } from "@/lib/landing";
 
-// OAuth sign-ins (Google) land here so they get the same role-based routing
-// as credentials sign-ins instead of a hard-coded destination.
+// Every sign-in (credentials and Google) lands here; the first page follows
+// the menu access matrix (lib/landing.ts).
 export default async function PostLoginPage() {
   const session = await auth();
   if (!session?.user) redirect("/");
-  redirect(getLandingPath(session.user.roles ?? []));
+  redirect(await landingPathFor(session));
 }

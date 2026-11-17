@@ -7,12 +7,12 @@ import {
   statementLabels,
   today,
 } from "@/lib/report-labels";
-import { ACCOUNTING_REPORT_ROLES, authorizeExport } from "@/lib/report-route";
 import { applyBaseFont, newWorkbook, writeHeader, writeStatement, writeTitle, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
+import { authorizeMenuRoute } from "@/lib/menu-access";
 
 export async function GET(request: Request) {
-  const session = await authorizeExport(ACCOUNTING_REPORT_ROLES);
+  const session = await authorizeMenuRoute("reports.profit_loss");
   if (session instanceof Response) return session;
 
   const url = new URL(request.url);

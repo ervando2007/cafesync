@@ -2,6 +2,7 @@ import type { Session } from "next-auth";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrator",
+  USER_ADMIN: "Admin User",
   GM: "General Manager",
   MANAGER: "Manager",
   CASHIER: "Cashier",
@@ -9,7 +10,7 @@ const ROLE_LABELS: Record<string, string> = {
   CUSTOMER: "Customer",
 };
 
-const ROLE_PRIORITY = ["ADMIN", "GM", "MANAGER", "ACCOUNTING", "CASHIER", "CUSTOMER"];
+const ROLE_PRIORITY = ["ADMIN", "USER_ADMIN", "GM", "MANAGER", "ACCOUNTING", "CASHIER", "CUSTOMER"];
 
 export function resolveDisplayIdentity(session: Session): {
   userName: string;

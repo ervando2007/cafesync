@@ -1,11 +1,11 @@
-import { requireRole } from "@/lib/auth-guard";
 import { resolveDisplayIdentity } from "@/lib/role-labels";
 import { getVisibleMenuKeyList } from "@/lib/menu-nav";
 import { PosSidebar } from "@/app/ui/pos/sidebar";
 import { getShiftCard } from "@/lib/shift-summary";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function PosLayout({ children }: LayoutProps<"/pos">) {
-  const session = await requireRole(["ADMIN", "GM", "MANAGER", "CASHIER"]);
+  const session = await requireMenu("pos");
   const { userName, userRole } = resolveDisplayIdentity(session);
   const [visibleMenuKeys, shift] = await Promise.all([
     getVisibleMenuKeyList(session),

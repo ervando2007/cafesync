@@ -1,12 +1,11 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getBalanceSheet, resolveLedgerScope } from "@/lib/ledger";
 import { COMPANY_NAME, formatReportDate, isoDateOr, statementLabels, today } from "@/lib/report-labels";
-import { ACCOUNTING_REPORT_ROLES } from "@/lib/report-route";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { AsOfDateSelect, ReportDownload, ShowZeroToggle } from "@/app/ui/reports/report-filters";
 import { StatementTable } from "@/app/ui/reports/statement-table";
 import { PageHeader } from "@/app/ui/page-header";
 import { getT } from "@/lib/i18n/server";
+import { requireMenu } from "@/lib/menu-access";
 
 function formatRp(value: number) {
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
@@ -17,7 +16,7 @@ export default async function BalanceSheetReportPage({
 }: {
   searchParams: Promise<{ outlet?: string; to?: string; zero?: string }>;
 }) {
-  const session = await requireRole(ACCOUNTING_REPORT_ROLES);
+  const session = await requireMenu("reports.balance_sheet");
   const { t, locale } = await getT();
   const params = await searchParams;
   const scope = await resolveLedgerScope(session, params.outlet, t("reports.allOutlets"));

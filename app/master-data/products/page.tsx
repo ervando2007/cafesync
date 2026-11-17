@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getUnits } from "@/lib/inventory";
 import { getOutletsForManagement } from "@/lib/outlets";
 import {
@@ -10,9 +9,10 @@ import {
 import { ProductsTable } from "@/app/ui/master-data/products-table";
 import { getT } from "@/lib/i18n/server";
 import { PageHeader } from "@/app/ui/page-header";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function ProductsPage() {
-  const session = await requireRole(["ADMIN", "GM"]);
+  const session = await requireMenu("master_data");
   const { t } = await getT();
 
   const [products, categories, units, outlets] = await Promise.all([

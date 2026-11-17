@@ -1,24 +1,16 @@
 import { resolveLedgerScope } from "@/lib/ledger";
-import {
-  ATTENDANCE_REPORT_ROLES,
-  formatDuration,
-  getAttendanceEmployees,
-  getAttendanceReport,
-  parseAttendanceStatus,
-  parseUserId,
-  summarizeAttendance,
-} from "@/lib/attendance";
+import { formatDuration, getAttendanceEmployees, getAttendanceReport, parseAttendanceStatus, parseUserId, summarizeAttendance } from "@/lib/attendance";
 import { COMPANY_NAME, firstDayOfMonth, isoDateOr, today } from "@/lib/report-labels";
-import { authorizeExport } from "@/lib/report-route";
 import { applyBaseFont, newWorkbook, writeHeader, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
+import { authorizeMenuRoute } from "@/lib/menu-access";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 /** "2026-04-11" → "11-04-2026" */
 const dmy = (iso: string) => iso.split("-").reverse().join("-");
 
 export async function GET(request: Request) {
-  const session = await authorizeExport(ATTENDANCE_REPORT_ROLES);
+  const session = await authorizeMenuRoute("reports.attendance");
   if (session instanceof Response) return session;
 
   const url = new URL(request.url);

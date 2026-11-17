@@ -2,7 +2,7 @@ import "server-only";
 import { resolveLedgerScope } from "@/lib/ledger";
 import { getBankStatement, getStatementAccounts } from "@/lib/bank-statement";
 import { COMPANY_NAME, firstDayOfMonth, isoDateOr, today } from "@/lib/report-labels";
-import { ACCOUNTING_REPORT_ROLES, authorizeExport } from "@/lib/report-route";
+import { authorizeMenuRoute } from "@/lib/menu-access";
 import { applyBaseFont, newWorkbook, RP2_FORMAT, writeHeader, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
 import type { TranslationKey } from "@/lib/i18n/translate";
@@ -20,9 +20,10 @@ function stamp(date: string, time: string) {
 /** xlsx download for the Bank / Kas statement reports (same header block as the Sales report). */
 export async function accountStatementExport(
   request: Request,
-  config: { accountCodes: string[]; titleKey: TranslationKey; allAccountsKey: TranslationKey; filePrefix: string },
+  /** menuKey: report permission, e.g. "reports.cash" (lib/menu-rules.ts). */
+  config: { accountCodes: string[]; titleKey: TranslationKey; allAccountsKey: TranslationKey; filePrefix: string; menuKey: string },
 ): Promise<Response> {
-  const session = await authorizeExport(ACCOUNTING_REPORT_ROLES);
+  const session = await authorizeMenuRoute(config.menuKey);
   if (session instanceof Response) return session;
 
   const url = new URL(request.url);

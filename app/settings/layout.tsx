@@ -1,10 +1,11 @@
 import { requireRole } from "@/lib/auth-guard";
+import { USER_MANAGER_ROLES } from "@/lib/user-admin-scope";
 import { resolveDisplayIdentity } from "@/lib/role-labels";
 import { getVisibleMenuKeyList } from "@/lib/menu-nav";
 import { SettingsSidebar } from "@/app/ui/settings/sidebar";
 
 export default async function SettingsLayout({ children }: LayoutProps<"/settings">) {
-  const session = await requireRole(["ADMIN"]);
+  const session = await requireRole(USER_MANAGER_ROLES);
   const { userName, userRole } = resolveDisplayIdentity(session);
   const visibleMenuKeys = await getVisibleMenuKeyList(session);
 

@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { resolveDisplayIdentity } from "@/lib/role-labels";
 import {
   getDiningTables,
@@ -8,9 +7,10 @@ import {
   PRICING_CHANNELS,
 } from "@/lib/pos";
 import { PosTerminal, type OutletBundle } from "@/app/ui/pos/pos-terminal";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function PosPage() {
-  const session = await requireRole(["ADMIN", "GM", "MANAGER", "CASHIER"]);
+  const session = await requireMenu("pos");
 
   const outlets = await getOutletsForUser(session);
   const outletData: Record<number, OutletBundle> = {};

@@ -1,19 +1,12 @@
 import ExcelJS from "exceljs";
-import { auth } from "@/auth";
 import { getAccounts } from "@/lib/accounting";
 import { getT } from "@/lib/i18n/server";
-
-const ALLOWED_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
+import { authorizeMenuRoute } from "@/lib/menu-access";
+import { SUBMENU_ROLES } from "@/lib/menu-rules";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-  const hasRole = session.user.roles.some((role) => ALLOWED_ROLES.includes(role));
-  if (!hasRole) {
-    return new Response("Forbidden", { status: 403 });
-  }
+  const session = await authorizeMenuRoute("master_data", SUBMENU_ROLES["master_data.coa"]);
+  if (session instanceof Response) return session;
 
   const { t } = await getT();
   const accounts = await getAccounts();

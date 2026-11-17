@@ -1,15 +1,14 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import { getMasterMenu } from "@/lib/master-menu";
 import { COMPANY_NAME } from "@/lib/report-labels";
-import { ACCOUNTING_REPORT_ROLES } from "@/lib/report-route";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { ReportDownload } from "@/app/ui/reports/report-filters";
 import { PageHeader } from "@/app/ui/page-header";
 import { getT } from "@/lib/i18n/server";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function MasterMenuPage({ searchParams }: { searchParams: Promise<{ outlet?: string }> }) {
-  const session = await requireRole(ACCOUNTING_REPORT_ROLES);
+  const session = await requireMenu("reports.master_menu");
   const { t } = await getT();
   const outlets = await getOutletsForUser(session);
   const params = await searchParams;

@@ -1,11 +1,10 @@
 import { resolveLedgerScope } from "@/lib/ledger";
 import { getStockCategories, getStockReport, type StockLevel } from "@/lib/stock-report";
 import { COMPANY_NAME, firstDayOfMonth, isoDateOr, today } from "@/lib/report-labels";
-import { authorizeExport } from "@/lib/report-route";
 import { applyBaseFont, newWorkbook, RP_FORMAT, writeHeader, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
+import { authorizeMenuRoute } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "ACCOUNTING"];
 const LEVELS: StockLevel[] = ["OK", "LOW", "OUT"];
 const QTY_FORMAT = "#,##0.###;(#,##0.###);\"-\"";
 
@@ -13,7 +12,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const dmy = (iso: string) => iso.split("-").reverse().join("-");
 
 export async function GET(request: Request) {
-  const session = await authorizeExport(ALLOWED_ROLES);
+  const session = await authorizeMenuRoute("reports.stock");
   if (session instanceof Response) return session;
 
   const url = new URL(request.url);

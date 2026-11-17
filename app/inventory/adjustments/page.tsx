@@ -1,14 +1,14 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import { getStockItemOptions, type StockItemOption } from "@/lib/inventory";
 import { AdjustmentForm } from "@/app/ui/inventory/adjustment-form";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function AdjustmentsPage({
   searchParams,
 }: {
   searchParams: Promise<{ outlet?: string }>;
 }) {
-  const session = await requireRole(["ADMIN", "GM", "MANAGER"]);
+  const session = await requireMenu("inventory");
   const outlets = await getOutletsForUser(session);
   const params = await searchParams;
 

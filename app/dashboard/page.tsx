@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import { DashboardTopbar } from "@/app/ui/dashboard/topbar";
 import { StatCard } from "@/app/ui/dashboard/stat-card";
@@ -29,6 +28,7 @@ import {
   getTopProducts,
 } from "@/lib/dashboard-data";
 import { getT } from "@/lib/i18n/server";
+import { requireMenu } from "@/lib/menu-access";
 
 // Order matches getStatCards' PRD KPI order exactly: Net Sales, Orders,
 // Average Ticket, HPP/COGS, Gross Profit, Cash In.
@@ -42,7 +42,7 @@ const STAT_ICONS = [
 ];
 
 export default async function DashboardPage() {
-  const session = await requireRole(["ADMIN", "GM", "MANAGER", "ACCOUNTING"]);
+  const session = await requireMenu("dashboard");
   const { t } = await getT();
   const firstName = (session.user.name ?? session.user.email ?? "there").split(" ")[0];
 

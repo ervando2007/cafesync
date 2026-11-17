@@ -3,8 +3,7 @@
 import { useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getSession, signIn } from "next-auth/react";
-import { getLandingPath } from "@/lib/role-routes";
+import { signIn } from "next-auth/react";
 import { useI18n } from "@/app/i18n-provider";
 import {
   EyeIcon,
@@ -41,8 +40,8 @@ export function LoginForm() {
       return;
     }
 
-    const session = await getSession();
-    router.push(getLandingPath(session?.user.roles ?? []));
+    // The first page depends on the menu matrix, which only the server knows.
+    router.push("/post-login");
     router.refresh();
   }
 

@@ -40,38 +40,40 @@ export interface OutletBundle {
 }
 
 const EMPTY_CATALOG: MenuItem[] = [];
-const EMPTY_TABLES: PublicTable[] = [];
 
+/**
+ * Customer self-order menu. The outlet always comes from the printed QR and is
+ * fixed; a table QR also fixes the table (lockedTableId), an outlet QR lets the
+ * guest pick one.
+ */
 export function CustomerMenu({
-  outlets,
-  outletData,
-  initialOutletId,
-  initialTableId,
+  outlet,
+  bundle,
+  lockedTableId,
+  menuHref,
 }: {
-  outlets: PublicOutlet[];
-  outletData: Record<number, OutletBundle>;
-  initialOutletId: number | null;
-  initialTableId: number | null;
+  outlet: PublicOutlet;
+  bundle: OutletBundle;
+  lockedTableId: number | null;
+  /** This QR's own URL, so "Menu" links keep the outlet/table. */
+  menuHref: string;
 }) {
   const { t } = useI18n();
-  const [outletId, setOutletId] = useState<number | null>(initialOutletId ?? outlets[0]?.id ?? null);
+  const outletId = outlet.id;
   const [orderType, setOrderType] = useState<CustomerOrderType>("DINE_IN_QR");
-  const [tableId, setTableId] = useState<number | null>(initialTableId);
+  const [tableId, setTableId] = useState<number | null>(lockedTableId);
   const [guestName, setGuestName] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(ALL_MENU);
-  const [showOutletModal, setShowOutletModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmedOrderNo, setConfirmedOrderNo] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const bundle = outletId !== null ? outletData[outletId] : undefined;
-  const catalog = bundle?.catalogByChannel[pricingChannelFor(orderType)] ?? EMPTY_CATALOG;
-  const tables = bundle?.tables ?? EMPTY_TABLES;
+  const catalog = bundle.catalogByChannel[pricingChannelFor(orderType)] ?? EMPTY_CATALOG;
+  const tables = bundle.tables;
 
-  const outlet = outlets.find((o) => o.id === outletId) ?? null;
   const table = tables.find((t) => t.id === tableId) ?? null;
 
   const categories = useMemo(() => {
@@ -133,13 +135,6 @@ export function CustomerMenu({
     setCart((prev) => prev.filter((line) => line.productId !== productId));
   }
 
-  function selectOutlet(id: number) {
-    setOutletId(id);
-    setTableId(null);
-    setCart([]);
-    setShowOutletModal(false);
-  }
-
   function selectTable(id: number) {
     setTableId(id);
     setShowTableModal(false);
@@ -152,10 +147,6 @@ export function CustomerMenu({
 
   function handleCheckout() {
     setError(null);
-    if (!outletId) {
-      setError(t("order.selectOutletFirst"));
-      return;
-    }
     if (cart.length === 0) {
       setError(t("order.cartEmpty"));
       return;
@@ -189,13 +180,13 @@ export function CustomerMenu({
     const whoText =
       orderType === "DINE_IN_QR"
         ? table
-          ? t("order.orderSentToTable", { table: table.name, outlet: outlet?.name ?? "" })
-          : t("order.orderSentToOutlet", { outlet: outlet?.name ?? "" })
-        : t("order.orderSentForGuest", { name: guestName.trim(), outlet: outlet?.name ?? "" });
+          ? t("order.orderSentToTable", { table: table.name, outlet: outlet.name })
+          : t("order.orderSentToOutlet", { outlet: outlet.name })
+        : t("order.orderSentForGuest", { name: guestName.trim(), outlet: outlet.name });
 
     return (
       <div className="flex min-h-screen flex-col bg-[#f9f8f6]">
-        <OrderTopNav />
+        <OrderTopNav menuHref={menuHref} />
         <div className="flex flex-1 items-center justify-center p-6">
           <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-xl">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
@@ -231,10 +222,10 @@ export function CustomerMenu({
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f9f8f6]">
-      <OrderTopNav />
+      <OrderTopNav menuHref={menuHref} />
 
       <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 px-6 py-6">
-        <WelcomeBanner outletName={outlet?.name ?? null} onChangeOutlet={() => setShowOutletModal(true)} />
+        <WelcomeBanner outletName={outlet.name} />
 
         {error && (
           <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -257,7 +248,7 @@ export function CustomerMenu({
             orderType={orderType}
             onOrderTypeChange={handleOrderTypeChange}
             tableLabel={table ? table.name : null}
-            onChangeTable={() => setShowTableModal(true)}
+            onChangeTable={lockedTableId === null ? () => setShowTableModal(true) : undefined}
             guestName={guestName}
             onGuestNameChange={setGuestName}
             cart={cart}
@@ -269,21 +260,12 @@ export function CustomerMenu({
             grandTotal={grandTotal}
             onCheckout={handleCheckout}
             isSubmitting={isPending}
-            canCheckout={cart.length > 0 && outletId !== null}
+            canCheckout={cart.length > 0}
           />
         </div>
       </main>
 
       <SiteFooter />
-
-      {showOutletModal && (
-        <SelectModal
-          title={t("order.selectOutlet")}
-          options={outlets.map((o) => ({ id: o.id, label: o.name, sublabel: o.address ?? undefined }))}
-          onSelect={selectOutlet}
-          onClose={() => setShowOutletModal(false)}
-        />
-      )}
 
       {showTableModal && (
         <SelectModal

@@ -1,10 +1,10 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import { getStockItemOptions, type StockItemOption } from "@/lib/inventory";
 import { TransferForm } from "@/app/ui/inventory/transfer-form";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function TransfersPage() {
-  const session = await requireRole(["ADMIN", "GM", "MANAGER"]);
+  const session = await requireMenu("inventory");
   const outlets = await getOutletsForUser(session);
 
   const outletItems: Record<number, StockItemOption[]> = {};

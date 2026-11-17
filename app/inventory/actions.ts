@@ -2,12 +2,12 @@
 
 import type { RowDataPacket } from "mysql2";
 import pool from "@/lib/db";
-import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
+import { hasOutletAccess } from "@/lib/auth-guard";
 import { getT } from "@/lib/i18n/server";
 import type { TranslateFn } from "@/lib/i18n/translate";
 import { getOrLockStock, insertMovement, upsertStock, validStockItemIds } from "@/lib/inventory-mutations";
+import { requireMenu } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER"];
 
 export interface ActionResult {
   ok: boolean;
@@ -27,7 +27,7 @@ export async function stockOut(input: {
   notes: string;
   items: StockOutLine[];
 }): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("inventory");
   const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
     return { ok: false, message: t("inventory.errNoOutletAccess") };
@@ -90,7 +90,7 @@ export async function adjustment(input: {
   notes: string;
   items: AdjustmentLine[];
 }): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("inventory");
   const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
     return { ok: false, message: t("inventory.errNoOutletAccess") };
@@ -168,7 +168,7 @@ export async function transfer(input: {
   toOutletId: number;
   items: TransferLine[];
 }): Promise<ActionResult> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("inventory");
   const { t } = await getT();
   if (input.fromOutletId === input.toOutletId) {
     return { ok: false, message: t("inventory.sourceDestDifferent") };
@@ -287,7 +287,7 @@ function isDuplicateSkuError(error: unknown): boolean {
 }
 
 export async function createStockItem(input: StockItemInput): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   const validationError = validateStockItemInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -339,7 +339,7 @@ export async function createStockItem(input: StockItemInput): Promise<ActionResu
 export async function updateStockItem(
   input: StockItemInput & { id: number },
 ): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   const validationError = validateStockItemInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -384,7 +384,7 @@ export async function setStockItemStatus(input: {
   id: number;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
     return { ok: false, message: t("inventory.errInvalidStatus") };
@@ -412,7 +412,7 @@ function isDuplicateCategoryError(error: unknown): boolean {
 }
 
 export async function createCategory(input: { name: string }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   const name = input.name.trim();
   if (!name) return { ok: false, message: t("inventory.errCategoryNameRequired") };
@@ -433,7 +433,7 @@ export async function createCategory(input: { name: string }): Promise<ActionRes
 }
 
 export async function updateCategory(input: { id: number; name: string }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   const name = input.name.trim();
   if (!name) return { ok: false, message: t("inventory.errCategoryNameRequired") };
@@ -460,7 +460,7 @@ export async function setCategoryStatus(input: {
   id: number;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
     return { ok: false, message: t("inventory.errInvalidStatus") };
@@ -495,7 +495,7 @@ function validateSupplierInput(input: SupplierInput, t: TranslateFn): string | n
 }
 
 export async function createSupplier(input: SupplierInput): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   const validationError = validateSupplierInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -515,7 +515,7 @@ export async function createSupplier(input: SupplierInput): Promise<ActionResult
 export async function updateSupplier(
   input: SupplierInput & { id: number },
 ): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   const validationError = validateSupplierInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -544,7 +544,7 @@ export async function setSupplierStatus(input: {
   id: number;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("inventory");
   const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
     return { ok: false, message: t("inventory.errInvalidStatus") };

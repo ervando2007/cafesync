@@ -25,15 +25,16 @@ function mapRow(r: RowDataPacket): OutletRecord {
   };
 }
 
+export async function getAllOutlets(): Promise<OutletRecord[]> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, code, name, address, timezone, status FROM outlets ORDER BY name",
+  );
+  return rows.map(mapRow);
+}
+
 export async function getOutletsForManagement(session: Session): Promise<OutletRecord[]> {
   const isGlobal = session.user.roles.some((r) => r === "ADMIN" || r === "GM");
-
-  if (isGlobal) {
-    const [rows] = await pool.query<RowDataPacket[]>(
-      "SELECT id, code, name, address, timezone, status FROM outlets ORDER BY name",
-    );
-    return rows.map(mapRow);
-  }
+  if (isGlobal) return getAllOutlets();
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT o.id, o.code, o.name, o.address, o.timezone, o.status FROM outlets o

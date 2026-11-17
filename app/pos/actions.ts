@@ -2,7 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import pool from "@/lib/db";
-import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
+import { hasOutletAccess } from "@/lib/auth-guard";
 import {
   getDiningTables,
   getHeldOrders,
@@ -22,8 +22,8 @@ import { getT } from "@/lib/i18n/server";
 import { getOrLockStock, insertMovement, upsertStock } from "@/lib/inventory-mutations";
 import { loadActiveRecipeLines, productsWithoutRecipe } from "@/lib/product-availability";
 import type { PricingChannel } from "@/lib/pricing-channel";
+import { requireMenu } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "CASHIER"];
 const MANAGER_ROLES = ["ADMIN", "GM", "MANAGER"];
 // DINE_IN_QR isn't offered as a creation choice in the POS header (staff always pick
 // Dine In/Take Away/Delivery) — it's included so resuming a customer-placed QR order
@@ -290,7 +290,7 @@ async function applySalePosting(
 export async function submitOrder(
   input: SubmitOrderInput,
 ): Promise<SubmitOrderResult | SubmitOrderError> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("pos");
   const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
     return { ok: false, message: t("pos.errNoOutletAccess") };
@@ -497,7 +497,7 @@ export interface VoidOrderInput {
 export async function voidOrder(
   input: VoidOrderInput,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("pos");
   const { t } = await getT();
   if (!(await hasOutletAccess(session, input.outletId))) {
     return { ok: false, message: t("pos.errNoOutletAccess") };
@@ -553,7 +553,7 @@ export async function voidOrder(
 }
 
 export async function loadHeldOrder(orderId: number): Promise<OrderDetail | null> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("pos");
   const order = await getOrderDetail(orderId);
   if (!order) return null;
   if (!(await hasOutletAccess(session, order.outletId))) return null;
@@ -561,13 +561,13 @@ export async function loadHeldOrder(orderId: number): Promise<OrderDetail | null
 }
 
 export async function refreshHeldOrders(outletId: number): Promise<HeldOrderSummary[]> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("pos");
   if (!(await hasOutletAccess(session, outletId))) return [];
   return getHeldOrders(outletId);
 }
 
 export async function refreshTables(outletId: number): Promise<DiningTableOption[] | null> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("pos");
   if (!(await hasOutletAccess(session, outletId))) return null;
   return getDiningTables(outletId);
 }
@@ -581,7 +581,7 @@ export async function releaseTable(
   outletId: number,
   tableId: number,
 ): Promise<{ ok: true; tables: DiningTableOption[] } | { ok: false; message: string }> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("pos");
   const { t } = await getT();
   if (!(await hasOutletAccess(session, outletId))) {
     return { ok: false, message: t("pos.errNoOutletAccess") };
@@ -613,7 +613,7 @@ export async function releaseTable(
 export async function refreshCatalog(
   outletId: number,
 ): Promise<Record<PricingChannel, CatalogProduct[]> | null> {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("pos");
   if (!(await hasOutletAccess(session, outletId))) return null;
   const catalogs = await Promise.all(PRICING_CHANNELS.map((channel) => getPosCatalog(outletId, channel)));
   return Object.fromEntries(PRICING_CHANNELS.map((channel, i) => [channel, catalogs[i]])) as Record<

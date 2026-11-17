@@ -7,8 +7,7 @@ import { createUser, updateUser } from "@/app/settings/actions";
 import type { UserRecord, UserRoleRef } from "@/lib/users";
 import type { OutletRecord } from "@/lib/outlets";
 import { useI18n } from "@/app/i18n-provider";
-
-const OUTLET_SCOPED_ROLE_CODES = ["MANAGER", "CASHIER"];
+import { GLOBAL_OUTLET_ROLE_CODES, needsOutletAssignment } from "@/lib/role-scope";
 
 export function UserFormModal({
   mode,
@@ -35,10 +34,11 @@ export function UserFormModal({
   const [isPending, startTransition] = useTransition();
 
   const activeOutlets = outlets.filter((o) => o.status === "ACTIVE");
-  const needsOutletScope = roleIds.some((id) => {
-    const role = roles.find((r) => r.id === id);
-    return role && OUTLET_SCOPED_ROLE_CODES.includes(role.code);
-  });
+  const selectedRoleCodes = roleIds
+    .map((id) => roles.find((r) => r.id === id)?.code)
+    .filter((code): code is string => !!code);
+  const hasAllOutlets = selectedRoleCodes.some((code) => GLOBAL_OUTLET_ROLE_CODES.includes(code));
+  const missingOutlet = needsOutletAssignment(selectedRoleCodes) && outletIds.length === 0;
 
   function toggleRole(id: number) {
     setRoleIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
@@ -159,28 +159,39 @@ export function UserFormModal({
             </div>
           </div>
 
-          {needsOutletScope && (
-            <div>
-              <label className="text-xs text-gray-500">{t("settings.outletAccess")}</label>
-              <p className="mb-1.5 text-xs text-gray-400">{t("settings.outletAccessHint")}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {activeOutlets.map((outlet) => (
-                  <label
-                    key={outlet.id}
-                    className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={outletIds.includes(outlet.id)}
-                      onChange={() => toggleOutlet(outlet.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-amber-700 focus:ring-amber-500"
-                    />
-                    {outlet.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="text-xs text-gray-500">{t("settings.outletAccess")}</label>
+            {hasAllOutlets ? (
+              <p className="mt-1.5 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                {t("settings.outletAccessAll")}
+              </p>
+            ) : (
+              <>
+                <p className="mb-1.5 text-xs text-gray-400">{t("settings.outletAccessHint")}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {activeOutlets.map((outlet) => (
+                    <label
+                      key={outlet.id}
+                      className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={outletIds.includes(outlet.id)}
+                        onChange={() => toggleOutlet(outlet.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-amber-700 focus:ring-amber-500"
+                      />
+                      {outlet.name}
+                    </label>
+                  ))}
+                </div>
+                {missingOutlet && (
+                  <p className="mt-1.5 text-xs font-medium text-amber-700">
+                    {t("settings.errSelectOutlet")}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-3">

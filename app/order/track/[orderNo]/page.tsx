@@ -19,10 +19,12 @@ export default async function OrderTrackPage({
   const order = await getOrderByNo(orderNo);
   if (!order) notFound();
   const { t } = await getT();
+  const menuQuery = new URLSearchParams({ outlet: order.outletCode });
+  if (order.tableCode) menuQuery.set("table", order.tableCode);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f9f8f6]">
-      <OrderTopNav />
+      <OrderTopNav menuHref={`/order?${menuQuery.toString()}`} />
 
       <main className="mx-auto w-full max-w-lg flex-1 px-6 py-10">
         <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -81,7 +83,7 @@ export default async function OrderTrackPage({
         </div>
 
         <Link
-          href="/order"
+          href={`/order?${menuQuery.toString()}`}
           className="mt-4 block text-center text-sm font-medium text-amber-700 hover:text-amber-800"
         >
           {t("order.backToMenu")}

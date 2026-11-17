@@ -1,25 +1,17 @@
-import { requireRole } from "@/lib/auth-guard";
 import { resolveLedgerScope } from "@/lib/ledger";
-import {
-  ATTENDANCE_REPORT_ROLES,
-  formatDuration,
-  getAttendanceEmployees,
-  getAttendanceReport,
-  parseAttendanceStatus,
-  parseUserId,
-  summarizeAttendance,
-} from "@/lib/attendance";
+import { formatDuration, getAttendanceEmployees, getAttendanceReport, parseAttendanceStatus, parseUserId, summarizeAttendance } from "@/lib/attendance";
 import { COMPANY_NAME, firstDayOfMonth, formatReportDate, isoDateOr, today } from "@/lib/report-labels";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
 import { ParamSelect, ReportDownload } from "@/app/ui/reports/report-filters";
 import { PageHeader } from "@/app/ui/page-header";
 import { getT } from "@/lib/i18n/server";
+import { requireMenu } from "@/lib/menu-access";
 
 type AttendanceSearchParams = { outlet?: string; from?: string; to?: string; user?: string; status?: string };
 
 export default async function AttendanceReportPage({ searchParams }: { searchParams: Promise<AttendanceSearchParams> }) {
-  const session = await requireRole(ATTENDANCE_REPORT_ROLES);
+  const session = await requireMenu("reports.attendance");
   const { t, locale } = await getT();
   const params = await searchParams;
   const scope = await resolveLedgerScope(session, params.outlet, t("reports.allOutlets"));

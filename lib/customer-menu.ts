@@ -88,7 +88,9 @@ export interface TrackedOrder {
   status: string;
   channel: string;
   outletName: string;
+  outletCode: string;
   tableName: string | null;
+  tableCode: string | null;
   guestName: string | null;
   subtotal: number;
   discountTotal: number;
@@ -101,7 +103,8 @@ export interface TrackedOrder {
 export async function getOrderByNo(orderNo: string): Promise<TrackedOrder | null> {
   const [orderRows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
     `SELECT o.order_no, o.status, o.order_channel, o.subtotal, o.discount_total, o.tax_total,
-            o.grand_total, o.ordered_at, o.guest_name, ot.name AS outlet_name, t.name AS table_name
+            o.grand_total, o.ordered_at, o.guest_name, ot.name AS outlet_name, ot.code AS outlet_code,
+            t.name AS table_name, t.code AS table_code
      FROM orders o
      JOIN outlets ot ON ot.id = o.outlet_id
      LEFT JOIN dining_tables t ON t.id = o.table_id
@@ -124,7 +127,9 @@ export async function getOrderByNo(orderNo: string): Promise<TrackedOrder | null
     status: String(order.status),
     channel: String(order.order_channel),
     outletName: String(order.outlet_name),
+    outletCode: String(order.outlet_code),
     tableName: order.table_name ? String(order.table_name) : null,
+    tableCode: order.table_code ? String(order.table_code) : null,
     guestName: order.guest_name ? String(order.guest_name) : null,
     subtotal: Number(order.subtotal),
     discountTotal: Number(order.discount_total),

@@ -1,11 +1,10 @@
-import { requireRole } from "@/lib/auth-guard";
-import { ATTENDANCE_ROLES } from "@/lib/attendance";
 import { resolveDisplayIdentity } from "@/lib/role-labels";
 import { getVisibleMenuKeyList } from "@/lib/menu-nav";
 import { AttendanceSidebar } from "@/app/ui/attendance/sidebar";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function AttendanceLayout({ children }: LayoutProps<"/attendance">) {
-  const session = await requireRole(ATTENDANCE_ROLES);
+  const session = await requireMenu("attendance");
   const { userName, userRole } = resolveDisplayIdentity(session);
   const visibleMenuKeys = await getVisibleMenuKeyList(session);
 

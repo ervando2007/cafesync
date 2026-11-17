@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import { getAccounts, getCashTransactions } from "@/lib/accounting";
 import { OutletSelect } from "@/app/ui/inventory/outlet-select";
@@ -6,8 +5,8 @@ import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
 import { CashTransactionsTable } from "@/app/ui/accounting/cash-transactions-table";
 import { getT } from "@/lib/i18n/server";
 import { PageHeader } from "@/app/ui/page-header";
+import { requireMenu } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
 const POSTER_ROLES = ["ADMIN", "ACCOUNTING"];
 
 function firstDayOfMonth(): string {
@@ -24,7 +23,7 @@ export default async function CashTransactionsPage({
 }: {
   searchParams: Promise<{ outlet?: string; from?: string; to?: string }>;
 }) {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("accounting");
   const { t } = await getT();
   const roles = session.user.roles;
   const outlets = await getOutletsForUser(session);

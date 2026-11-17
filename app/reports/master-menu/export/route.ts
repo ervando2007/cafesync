@@ -2,12 +2,12 @@ import { hasOutletAccess } from "@/lib/auth-guard";
 import { getOutletsForUser } from "@/lib/pos";
 import { getMasterMenu } from "@/lib/master-menu";
 import { COMPANY_NAME, formatReportDate, today } from "@/lib/report-labels";
-import { ACCOUNTING_REPORT_ROLES, authorizeExport } from "@/lib/report-route";
 import { applyBaseFont, newWorkbook, writeHeader, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
+import { authorizeMenuRoute } from "@/lib/menu-access";
 
 export async function GET(request: Request) {
-  const session = await authorizeExport(ACCOUNTING_REPORT_ROLES);
+  const session = await authorizeMenuRoute("reports.master_menu");
   if (session instanceof Response) return session;
 
   const outletId = Number(new URL(request.url).searchParams.get("outlet") ?? 0);

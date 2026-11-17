@@ -1,4 +1,3 @@
-import { requireRole } from "@/lib/auth-guard";
 import { resolveLedgerScope } from "@/lib/ledger";
 import { getStockCategories, getStockReport, type StockLevel } from "@/lib/stock-report";
 import { COMPANY_NAME, firstDayOfMonth, formatReportDate, isoDateOr, today } from "@/lib/report-labels";
@@ -7,8 +6,8 @@ import { DateRangeSelect } from "@/app/ui/inventory/date-range-select";
 import { ParamSelect, ReportDownload } from "@/app/ui/reports/report-filters";
 import { PageHeader } from "@/app/ui/page-header";
 import { getT } from "@/lib/i18n/server";
+import { requireMenu } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "ACCOUNTING"];
 const LEVELS: StockLevel[] = ["OK", "LOW", "OUT"];
 
 function rp(value: number) {
@@ -30,7 +29,7 @@ export default async function StockReportPage({
 }: {
   searchParams: Promise<{ outlet?: string; from?: string; to?: string; category?: string; level?: string }>;
 }) {
-  const session = await requireRole(ALLOWED_ROLES);
+  const session = await requireMenu("reports.stock");
   const { t, locale } = await getT();
   const params = await searchParams;
   const scope = await resolveLedgerScope(session, params.outlet, t("reports.allOutlets"));

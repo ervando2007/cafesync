@@ -42,7 +42,8 @@ export function OrderCartPanel({
   orderType: CustomerOrderType;
   onOrderTypeChange: (type: CustomerOrderType) => void;
   tableLabel: string | null;
-  onChangeTable: () => void;
+  /** Omitted when the table is fixed by a table QR. */
+  onChangeTable?: () => void;
   guestName: string;
   onGuestNameChange: (value: string) => void;
   cart: CartLine[];
@@ -96,13 +97,15 @@ export function OrderCartPanel({
               <QrCodeIcon className="h-4 w-4 text-gray-400" />
               {tableLabel ?? t("pos.noTableSelected")}
             </p>
-            <button
-              type="button"
-              onClick={onChangeTable}
-              className="text-xs font-semibold text-amber-700 hover:text-amber-800"
-            >
-              {tableLabel ? t("order.change") : t("pos.selectTable")}
-            </button>
+            {onChangeTable && (
+              <button
+                type="button"
+                onClick={onChangeTable}
+                className="text-xs font-semibold text-amber-700 hover:text-amber-800"
+              >
+                {tableLabel ? t("order.change") : t("pos.selectTable")}
+              </button>
+            )}
           </div>
         ) : (
           <div className="mt-3">

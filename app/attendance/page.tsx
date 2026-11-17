@@ -1,13 +1,13 @@
-import { requireRole } from "@/lib/auth-guard";
-import { ATTENDANCE_ROLES, formatDuration, getOpenAttendance, getRecentAttendance } from "@/lib/attendance";
+import { formatDuration, getOpenAttendance, getRecentAttendance } from "@/lib/attendance";
 import { getOutletsForUser } from "@/lib/pos";
 import { formatReportDate } from "@/lib/report-labels";
 import { getT } from "@/lib/i18n/server";
 import { PageHeader } from "@/app/ui/page-header";
 import { ClockCard } from "@/app/ui/attendance/clock-card";
+import { requireMenu } from "@/lib/menu-access";
 
 export default async function AttendancePage() {
-  const session = await requireRole(ATTENDANCE_ROLES);
+  const session = await requireMenu("attendance");
   const { t, locale } = await getT();
   const userId = Number(session.user.id);
   const [open, recent, outlets] = await Promise.all([

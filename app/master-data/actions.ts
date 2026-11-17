@@ -4,20 +4,20 @@ import { randomUUID } from "crypto";
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import type { RowDataPacket } from "mysql2";
-import { hasOutletAccess, requireRole } from "@/lib/auth-guard";
+import { hasOutletAccess } from "@/lib/auth-guard";
 import pool from "@/lib/db";
 import { getT } from "@/lib/i18n/server";
 import type { TranslateFn } from "@/lib/i18n/translate";
 import type { AccountType } from "@/lib/accounting";
 import { openingIneligibleReason } from "@/lib/opening-balances";
 import { getOutletPricesForProduct, type OutletPriceRow } from "@/lib/products";
+import { requireMenu } from "@/lib/menu-access";
+import { SUBMENU_ROLES } from "@/lib/menu-rules";
 
 const PRODUCT_IMAGE_DIR = path.join(process.cwd(), "public", "uploads", "products");
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
-const ALLOWED_ROLES = ["ADMIN", "GM"];
-const COA_ROLES = ["ADMIN", "GM", "ACCOUNTING"];
 const ACCOUNT_TYPES: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
 
 export interface ActionResult {
@@ -49,7 +49,7 @@ function isDuplicateCodeError(error: unknown): boolean {
 }
 
 export async function createOutlet(input: OutletInput): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data", SUBMENU_ROLES["master_data.outlets"]);
   const { t } = await getT();
   const validationError = validateOutletInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -71,7 +71,7 @@ export async function createOutlet(input: OutletInput): Promise<ActionResult> {
 }
 
 export async function updateOutlet(input: OutletInput & { id: number }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data", SUBMENU_ROLES["master_data.outlets"]);
   const { t } = await getT();
   const validationError = validateOutletInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -104,7 +104,7 @@ export async function setOutletStatus(input: {
   id: number;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data", SUBMENU_ROLES["master_data.outlets"]);
   const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
     return { ok: false, message: t("inventory.errInvalidStatus") };
@@ -146,7 +146,7 @@ function validateProductInput(input: ProductInput, t: TranslateFn): string | nul
 }
 
 export async function createProduct(input: ProductInput): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
   const validationError = validateProductInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -175,7 +175,7 @@ export async function createProduct(input: ProductInput): Promise<ActionResult> 
 }
 
 export async function updateProduct(input: ProductInput & { id: number }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
   const validationError = validateProductInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -211,7 +211,7 @@ export async function setProductStatus(input: {
   id: number;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
     return { ok: false, message: t("inventory.errInvalidStatus") };
@@ -238,7 +238,7 @@ export async function getOutletPricesForProductChannel(
   productId: number,
   channel: string,
 ): Promise<OutletPriceRow[]> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   return getOutletPricesForProduct(productId, channel);
 }
 
@@ -250,7 +250,7 @@ export async function upsertOutletProduct(input: {
   taxRate: number;
   isAvailable: boolean;
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
   if (!Number.isFinite(input.sellingPrice) || input.sellingPrice < 0) {
     return { ok: false, message: t("masterData.errSellingPriceNegative") };
@@ -286,7 +286,7 @@ export async function removeOutletProduct(input: {
   productId: number;
   channel: string;
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
 
   try {
@@ -304,7 +304,7 @@ export async function removeOutletProduct(input: {
 // ── Product Categories ──────────────────────────────────────────────────
 
 export async function createProductCategory(input: { name: string }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
   const name = input.name.trim();
   if (!name) return { ok: false, message: t("inventory.errCategoryNameRequired") };
@@ -325,7 +325,7 @@ export async function updateProductCategory(input: {
   id: number;
   name: string;
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
   const name = input.name.trim();
   if (!name) return { ok: false, message: t("inventory.errCategoryNameRequired") };
@@ -352,7 +352,7 @@ export async function setProductCategoryStatus(input: {
   id: number;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
     return { ok: false, message: t("inventory.errInvalidStatus") };
@@ -393,7 +393,7 @@ export async function uploadProductImage(
   productId: number,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
 
   const file = formData.get("image");
@@ -436,7 +436,7 @@ export async function uploadProductImage(
 }
 
 export async function removeProductImage(productId: number): Promise<ActionResult> {
-  await requireRole(ALLOWED_ROLES);
+  await requireMenu("master_data");
   const { t } = await getT();
 
   try {
@@ -492,7 +492,7 @@ const OPENING_REASON_MESSAGE = {
  * balances in one transaction, enforcing the rules in lib/opening-balances.ts.
  */
 async function saveAccount(input: AccountInput, id: number | null): Promise<ActionResult> {
-  const session = await requireRole(COA_ROLES);
+  const session = await requireMenu("master_data", SUBMENU_ROLES["master_data.coa"]);
   const { t } = await getT();
   const validationError = validateAccountInput(input, t);
   if (validationError) return { ok: false, message: validationError };
@@ -596,7 +596,7 @@ export async function setAccountStatus(input: {
   id: number;
   status: "ACTIVE" | "INACTIVE";
 }): Promise<ActionResult> {
-  await requireRole(COA_ROLES);
+  await requireMenu("master_data", SUBMENU_ROLES["master_data.coa"]);
   const { t } = await getT();
   if (input.status !== "ACTIVE" && input.status !== "INACTIVE") {
     return { ok: false, message: t("inventory.errInvalidStatus") };

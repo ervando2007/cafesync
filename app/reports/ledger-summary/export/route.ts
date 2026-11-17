@@ -1,6 +1,5 @@
 import { buildLedgerSummary, getAccountMovements, resolveLedgerScope } from "@/lib/ledger";
 import { COMPANY_NAME, firstDayOfMonth, formatReportDate, isoDateOr, today } from "@/lib/report-labels";
-import { ACCOUNTING_REPORT_ROLES, authorizeExport } from "@/lib/report-route";
 import {
   applyBaseFont,
   DRCR_FORMAT,
@@ -11,9 +10,10 @@ import {
   xlsxResponse,
 } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
+import { authorizeMenuRoute } from "@/lib/menu-access";
 
 export async function GET(request: Request) {
-  const session = await authorizeExport(ACCOUNTING_REPORT_ROLES);
+  const session = await authorizeMenuRoute("reports.ledger_summary");
   if (session instanceof Response) return session;
 
   const url = new URL(request.url);

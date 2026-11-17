@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { setRoleMenuPermission } from "@/app/settings/actions";
 import type { MenuItemRecord, PermissionPair, RoleRecord } from "@/lib/menu-permissions";
 import { useI18n } from "@/app/i18n-provider";
-import type { TranslateFn } from "@/lib/i18n/translate";
+import type { TranslateFn, TranslationKey } from "@/lib/i18n/translate";
 
-const MENU_KEY_TO_NAV_KEY: Record<string, "nav.dashboard" | "nav.pos" | "nav.inventory" | "nav.masterData" | "nav.accounting" | "nav.settings" | "nav.reports" | "nav.attendance"> = {
+const MENU_KEY_TO_NAV_KEY: Record<string, TranslationKey> = {
   dashboard: "nav.dashboard",
   pos: "nav.pos",
   inventory: "nav.inventory",
@@ -16,18 +16,69 @@ const MENU_KEY_TO_NAV_KEY: Record<string, "nav.dashboard" | "nav.pos" | "nav.inv
   settings: "nav.settings",
   reports: "nav.reports",
   attendance: "nav.attendance",
+  "reports.sales": "nav.salesReport",
+  "reports.stock": "nav.stockReport",
+  "reports.profit_loss": "nav.profitLossReport",
+  "reports.cash": "nav.cashReport",
+  "reports.bank": "nav.bankReport",
+  "reports.balance_sheet": "nav.balanceSheetReport",
+  "reports.general_ledger": "nav.generalLedger",
+  "reports.ledger_summary": "nav.ledgerSummary",
+  "reports.master_menu": "nav.masterMenu",
+  "reports.attendance": "nav.attendanceReport",
 };
+
+const REPORT_PREFIX = "reports.";
 
 function menuLabel(m: MenuItemRecord, t: TranslateFn): string {
   const navKey = MENU_KEY_TO_NAV_KEY[m.menuKey];
   return navKey ? t(navKey) : m.label;
 }
 
+/** Two tables: sections (Dashboard, POS, ...) and, separately, each report. */
 export function PermissionMatrix({
   roles,
   menuItems,
   permissions,
 }: {
+  roles: RoleRecord[];
+  menuItems: MenuItemRecord[];
+  permissions: PermissionPair[];
+}) {
+  const { t } = useI18n();
+  const sections = menuItems.filter((m) => !m.menuKey.startsWith(REPORT_PREFIX));
+  const reports = menuItems.filter((m) => m.menuKey.startsWith(REPORT_PREFIX));
+  return (
+    <div className="space-y-6">
+      <MatrixTable
+        title={t("settings.roleMenuAccess")}
+        description={t("settings.roleMenuAccessDesc")}
+        roles={roles}
+        menuItems={sections}
+        permissions={permissions}
+      />
+      {reports.length > 0 && (
+        <MatrixTable
+          title={t("settings.roleReportAccess")}
+          description={t("settings.roleReportAccessDesc")}
+          roles={roles}
+          menuItems={reports}
+          permissions={permissions}
+        />
+      )}
+    </div>
+  );
+}
+
+function MatrixTable({
+  title,
+  description,
+  roles,
+  menuItems,
+  permissions,
+}: {
+  title: string;
+  description: string;
   roles: RoleRecord[];
   menuItems: MenuItemRecord[];
   permissions: PermissionPair[];
@@ -54,8 +105,8 @@ export function PermissionMatrix({
   return (
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
       <div className="border-b border-gray-100 p-5">
-        <h2 className="text-base font-semibold text-gray-900">{t("settings.roleMenuAccess")}</h2>
-        <p className="mt-0.5 text-xs text-gray-400">{t("settings.roleMenuAccessDesc")}</p>
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        <p className="mt-0.5 text-xs text-gray-400">{description}</p>
       </div>
 
       <div className="overflow-x-auto">

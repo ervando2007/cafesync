@@ -2,10 +2,6 @@ import "server-only";
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import pool from "@/lib/db";
 
-/** Roles that clock IN/OUT themselves (everyone on staff; not CUSTOMER). */
-export const ATTENDANCE_ROLES = ["ADMIN", "GM", "MANAGER", "CASHIER", "ACCOUNTING"];
-/** Roles that see the IN/OUT report (scoped to their outlets via resolveLedgerScope). */
-export const ATTENDANCE_REPORT_ROLES = ["ADMIN", "GM", "MANAGER", "ACCOUNTING"];
 
 export const NOTE_MAX_LENGTH = 255;
 

@@ -2,18 +2,17 @@ import { resolveLedgerScope } from "@/lib/ledger";
 import { getSalesRecap, parseSalesRecapParams } from "@/lib/sales-report";
 import { dayFilterLabel, mealTimeLabel, salesRecapHeaders, salesTypeLabel } from "@/lib/sales-report-labels";
 import { COMPANY_NAME, firstDayOfMonth, isoDateOr, today } from "@/lib/report-labels";
-import { authorizeExport } from "@/lib/report-route";
 import { applyBaseFont, newWorkbook, RP_FORMAT, writeHeader, xlsxResponse } from "@/lib/xlsx-report";
 import { getT } from "@/lib/i18n/server";
+import { authorizeMenuRoute } from "@/lib/menu-access";
 
-const ALLOWED_ROLES = ["ADMIN", "GM", "MANAGER", "ACCOUNTING"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 /** "2026-04-11" → "11-04-2026", as in the template. */
 const dmy = (iso: string) => iso.split("-").reverse().join("-");
 
 export async function GET(request: Request) {
-  const session = await authorizeExport(ALLOWED_ROLES);
+  const session = await authorizeMenuRoute("reports.sales");
   if (session instanceof Response) return session;
 
   const url = new URL(request.url);
