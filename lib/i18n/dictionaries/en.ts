@@ -563,6 +563,10 @@ export const en = {
     errCouldNotUpdateAccountStatus: "Could not update account status. Please try again.",
   },
   settings: {
+    confirmDeleteUser: "Permanently delete {name} ({email})? This can't be undone.",
+    errCannotDeleteSelf: "You can't delete your own account.",
+    errUserHasHistory: "This user already has activity (orders, journals, stock, attendance or POS logs) and can't be deleted. Deactivate the user instead.",
+    errCouldNotDeleteUser: "Could not delete the user. Please try again.",
     roleReportAccess: "Report Access",
     roleReportAccessDesc: "Which reports each role can open. The Reports menu above must also be ticked for the role.",
     outletAccessAll: "Administrator / GM can access every outlet automatically.",

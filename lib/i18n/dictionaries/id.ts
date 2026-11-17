@@ -565,6 +565,10 @@ export const id: typeof en = {
     errCouldNotUpdateAccountStatus: "Gagal memperbarui status akun. Silakan coba lagi.",
   },
   settings: {
+    confirmDeleteUser: "Hapus permanen {name} ({email})? Tindakan ini tidak bisa dibatalkan.",
+    errCannotDeleteSelf: "Anda tidak dapat menghapus akun Anda sendiri.",
+    errUserHasHistory: "User ini sudah punya riwayat (order, jurnal, stok, absensi, atau log POS) sehingga tidak bisa dihapus. Nonaktifkan saja user ini.",
+    errCouldNotDeleteUser: "Tidak dapat menghapus user. Silakan coba lagi.",
     roleReportAccess: "Akses Laporan",
     roleReportAccessDesc: "Laporan yang bisa dibuka setiap role. Menu Laporan di atas juga harus dicentang untuk role tersebut.",
     outletAccessAll: "Administrator / GM otomatis punya akses ke semua outlet.",

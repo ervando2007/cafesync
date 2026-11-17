@@ -6,7 +6,7 @@ import { PlusIcon } from "@/app/ui/pos/icons";
 import { EditIcon } from "@/app/ui/inventory/icons";
 import { UserFormModal } from "@/app/ui/settings/user-form-modal";
 import { ResetPasswordModal } from "@/app/ui/settings/reset-password-modal";
-import { setUserStatus } from "@/app/settings/actions";
+import { deleteUser, setUserStatus } from "@/app/settings/actions";
 import type { UserRecord, UserRoleRef } from "@/lib/users";
 import type { OutletRecord } from "@/lib/outlets";
 import { useI18n } from "@/app/i18n-provider";
@@ -16,17 +16,33 @@ export function UsersTable({
   roles,
   outlets,
   currentUserId,
+  canDelete = false,
 }: {
   users: UserRecord[];
   roles: UserRoleRef[];
   outlets: OutletRecord[];
   currentUserId: number;
+  /** Administrator System only. */
+  canDelete?: boolean;
 }) {
   const router = useRouter();
   const { t } = useI18n();
   const [modalUser, setModalUser] = useState<UserRecord | "new" | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserRecord | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function handleDelete(user: UserRecord) {
+    if (!window.confirm(t("settings.confirmDeleteUser", { name: user.name, email: user.email }))) {
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteUser({ id: user.id });
+      if (!result.ok) setError(result.message ?? t("common.somethingWentWrong"));
+      router.refresh();
+    });
+  }
 
   function toggleStatus(user: UserRecord) {
     const nextStatus = user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
@@ -52,6 +68,12 @@ export function UsersTable({
           {t("settings.addUser")}
         </button>
       </div>
+
+      {error && (
+        <div className="mx-5 mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -144,6 +166,16 @@ export function UsersTable({
                       >
                         {user.status === "ACTIVE" ? t("common.deactivate") : t("common.activate")}
                       </button>
+                      {canDelete && user.id !== currentUserId && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(user)}
+                          disabled={isPending}
+                          className="text-xs font-medium text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {t("common.delete")}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

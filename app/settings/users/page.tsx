@@ -43,6 +43,7 @@ export default async function UserManagementPage() {
           roles={roles}
           outlets={outlets}
           currentUserId={currentUserId}
+          canDelete={fullAdmin}
         />
 
         {fullAdmin && (

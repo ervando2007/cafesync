@@ -295,3 +295,73 @@ export async function setRoleMenuPermission(input: {
     return { ok: false, message: t("settings.errCouldNotUpdatePermission") };
   }
 }
+
+/**
+ * Tables that hold a user's operational history. A user referenced here can't
+ * be deleted (reports and audit trails must keep pointing at them) — deactivate
+ * instead.
+ */
+const USER_HISTORY_REFS: [table: string, column: string][] = [
+  ["orders", "created_by"],
+  ["orders", "customer_id"],
+  ["orders", "voided_by"],
+  ["orders", "void_authorized_by"],
+  ["journal_entries", "created_by"],
+  ["cash_transactions", "created_by"],
+  ["inventory_movements", "created_by"],
+  ["attendances", "user_id"],
+  ["attendance_scans", "user_id"],
+  ["audit_logs", "user_id"],
+];
+
+/** Permanently delete a user with no history. ADMIN only; never yourself. */
+export async function deleteUser(input: { id: number }): Promise<ActionResult> {
+  const session = await requireRole(ALLOWED_ROLES);
+  const { t } = await getT();
+  if (Number(session.user.id) === input.id) {
+    return { ok: false, message: t("settings.errCannotDeleteSelf") };
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [users] = await conn.query<RowDataPacket[]>(
+      "SELECT id FROM users WHERE id = ? FOR UPDATE",
+      [input.id],
+    );
+    if (!users.length) {
+      await conn.rollback();
+      return { ok: false, message: t("settings.errUserNotFound") };
+    }
+
+    const [historyRows] = await conn.query<RowDataPacket[]>(
+      USER_HISTORY_REFS.map(
+        ([table, column]) => `(SELECT 1 AS hit FROM ${table} WHERE ${column} = ? LIMIT 1)`,
+      ).join(" UNION ALL "),
+      USER_HISTORY_REFS.map(() => input.id),
+    );
+    if (historyRows.length) {
+      await conn.rollback();
+      return { ok: false, message: t("settings.errUserHasHistory") };
+    }
+
+    // "Last edited by" stamps only — clear them rather than block the delete.
+    await conn.query("UPDATE recipes SET updated_by = NULL WHERE updated_by = ?", [input.id]);
+    await conn.query(
+      "UPDATE account_opening_balances SET updated_by = NULL WHERE updated_by = ?",
+      [input.id],
+    );
+    await conn.query("DELETE FROM password_reset_tokens WHERE user_id = ?", [input.id]);
+    await conn.query("DELETE FROM user_outlets WHERE user_id = ?", [input.id]);
+    await conn.query("DELETE FROM user_roles WHERE user_id = ?", [input.id]);
+    await conn.query("DELETE FROM users WHERE id = ?", [input.id]);
+    await conn.commit();
+    return { ok: true };
+  } catch (error) {
+    await conn.rollback();
+    console.error("deleteUser failed", error);
+    return { ok: false, message: t("settings.errCouldNotDeleteUser") };
+  } finally {
+    conn.release();
+  }
+}
