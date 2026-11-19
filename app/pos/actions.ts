@@ -37,7 +37,6 @@ const PAYMENT_METHODS = ["CASH", "BANK_TRANSFER", "QRIS", "CARD", "OTHER"] as co
 const PB1_RATE = 0.11;
 const SERVICE_CHARGE_RATE = 0.035;
 const DISCOUNT_PERCENT_OPTIONS = [0, 2, 5, 10];
-const PB1_ACCOUNT_CODE = "2100.002"; // HUTANG PB1 — a real liability, not revenue.
 
 export type OrderChannel = (typeof CHANNELS)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -169,88 +168,34 @@ async function applyRecipeConsumption(
 }
 
 // Chart of accounts codes from COA.pdf (database/18_new_coa_import.sql).
-// Non-cash payment methods (BANK_TRANSFER/QRIS/CARD/OTHER) all post to the
-// same default bank leaf (BRI) since orders don't record which specific bank
-// account a transfer/QRIS payment landed in — a real limitation, not an
-// oversight. COGS is itemized: each ingredient consumed debits its stock
+// COGS is itemized: each ingredient consumed debits its stock
 // item's linked 5000.xxx account (falling back to the "5000 HPP" header for
 // an item with no link), crediting 1200.001 Persediaan — the same account
 // purchase journals debit, so the inventory ledger matches stock value.
-const KAS_ACCOUNT_CODE = "1000.001";
-const DEFAULT_BANK_ACCOUNT_CODE = "1000.002";
 const PERSEDIAAN_ACCOUNT_CODE = "1200.001";
-const PENJUALAN_ACCOUNT_CODE = "4000.001";
 const HPP_ACCOUNT_CODE = "5000";
 
 /**
- * Posts the PRD's two required journal entries for a paid sale: Dr Kas/Bank,
- * Cr Penjualan for the sale itself, and (only when a recipe consumed stock)
- * Dr HPP, Cr Persediaan for COGS. Silently does nothing if the
- * chart of accounts is missing an expected code — accounting posting failing
- * should never be the reason a paid sale can't complete.
+ * Posts the COGS journal for a paid sale (Dr HPP per ingredient account,
+ * Cr Persediaan) when a recipe consumed stock. The sale's money side (Kas/Bank,
+ * Penjualan, PB1) is NOT journaled: POS revenue lives in the sales report only.
+ * Silently does nothing if the chart of accounts is missing an expected code —
+ * accounting posting failing should never be the reason a paid sale can't complete.
  */
-async function applySalePosting(
+async function applyCogsPosting(
   conn: import("mysql2/promise").PoolConnection,
   outletId: number,
   orderId: number,
-  grandTotal: number,
-  pb1Tax: number,
-  paymentMethod: PaymentMethod,
   consumption: ConsumptionResult,
   createdBy: number,
 ): Promise<void> {
   const [accountRows] = await conn.query<import("mysql2").RowDataPacket[]>(
-    "SELECT id, code FROM accounts WHERE code IN (?, ?, ?, ?, ?, ?)",
-    [
-      KAS_ACCOUNT_CODE,
-      DEFAULT_BANK_ACCOUNT_CODE,
-      PERSEDIAAN_ACCOUNT_CODE,
-      PENJUALAN_ACCOUNT_CODE,
-      HPP_ACCOUNT_CODE,
-      PB1_ACCOUNT_CODE,
-    ],
+    "SELECT id, code FROM accounts WHERE code IN (?, ?)",
+    [PERSEDIAAN_ACCOUNT_CODE, HPP_ACCOUNT_CODE],
   );
   const accountByCode = new Map(accountRows.map((r) => [String(r.code), Number(r.id)]));
-  const kasId = accountByCode.get(KAS_ACCOUNT_CODE);
-  const bankId = accountByCode.get(DEFAULT_BANK_ACCOUNT_CODE);
   const persediaanId = accountByCode.get(PERSEDIAAN_ACCOUNT_CODE);
-  const penjualanId = accountByCode.get(PENJUALAN_ACCOUNT_CODE);
   const hppAccountId = accountByCode.get(HPP_ACCOUNT_CODE);
-  const pb1AccountId = accountByCode.get(PB1_ACCOUNT_CODE);
-  if (!kasId || !bankId || !penjualanId) return;
-
-  const cashOrBankId = paymentMethod === "CASH" ? kasId : bankId;
-
-  const saleJournalNo = await nextJournalNo(conn);
-  const [saleResult] = await conn.query(
-    `INSERT INTO journal_entries
-       (journal_no, entry_date, outlet_id, source_type, source_id, memo, status, created_by)
-     VALUES (?, CURDATE(), ?, 'ORDER_SALE', ?, ?, 'POSTED', ?)`,
-    [saleJournalNo, outletId, orderId, `Sale revenue — order #${orderId}`, createdBy],
-  );
-  const saleJournalEntryId = (saleResult as { insertId: number }).insertId;
-  await conn.query(
-    "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, ?, 0)",
-    [saleJournalEntryId, cashOrBankId, grandTotal],
-  );
-  // PB1 collected from the customer is a tax liability, not revenue — split it out
-  // into its own credit line (2100.002 HUTANG PB1) when that account exists, rather
-  // than inflating Penjualan with tax the business doesn't actually keep.
-  if (pb1AccountId && pb1Tax > 0) {
-    await conn.query(
-      "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, 0, ?)",
-      [saleJournalEntryId, pb1AccountId, pb1Tax],
-    );
-    await conn.query(
-      "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, 0, ?)",
-      [saleJournalEntryId, penjualanId, grandTotal - pb1Tax],
-    );
-  } else {
-    await conn.query(
-      "INSERT INTO journal_lines (journal_entry_id, account_id, debit, credit) VALUES (?, ?, 0, ?)",
-      [saleJournalEntryId, penjualanId, grandTotal],
-    );
-  }
 
   const hppTotal = Math.round(consumption.hppTotal * 100) / 100;
   if (hppTotal > 0 && persediaanId && hppAccountId) {
@@ -436,16 +381,7 @@ export async function submitOrder(
         }
         throw error;
       }
-      await applySalePosting(
-        conn,
-        input.outletId,
-        orderId,
-        grandTotal,
-        taxTotal,
-        input.paymentMethod,
-        consumption,
-        Number(session.user.id),
-      );
+      await applyCogsPosting(conn, input.outletId, orderId, consumption, Number(session.user.id));
     }
 
     if (input.mode === "pay" && input.paymentMethod) {

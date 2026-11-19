@@ -56,7 +56,15 @@ export function PosTerminal({
 }) {
   const { t } = useI18n();
   const [data, setData] = useState(outletData);
-  const [outletId, setOutletId] = useState<number>(outlets[0]?.id ?? 0);
+  // Open on the first outlet that actually has a menu, not just the first by name.
+  const [outletId, setOutletId] = useState<number>(
+    () =>
+      (
+        outlets.find((o) =>
+          Object.values(outletData[o.id]?.catalogByChannel ?? {}).some((c) => c.length > 0),
+        ) ?? outlets[0]
+      )?.id ?? 0,
+  );
   const [orderType, setOrderType] = useState<OrderChannel>("DINE_IN_STAFF");
   const [tableId, setTableId] = useState<number | null>(null);
   const [guestName, setGuestName] = useState<string | null>(null);
