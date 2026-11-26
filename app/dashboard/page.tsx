@@ -1,4 +1,5 @@
-import { getOutletsForUser } from "@/lib/pos";
+import { resolveLedgerScope } from "@/lib/ledger";
+import { OutletSelect } from "@/app/ui/inventory/outlet-select";
 import { DashboardTopbar } from "@/app/ui/dashboard/topbar";
 import { StatCard } from "@/app/ui/dashboard/stat-card";
 import { SalesOverviewChart } from "@/app/ui/dashboard/sales-overview-chart";
@@ -12,6 +13,7 @@ import {
   DollarSignIcon,
   ReceiptIcon,
   ShoppingCartIcon,
+  StoreIcon,
   TrendingUpIcon,
   UsersIcon,
   WalletIcon,
@@ -41,13 +43,21 @@ const STAT_ICONS = [
   WalletIcon,
 ];
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ outlet?: string }>;
+}) {
   const session = await requireMenu("dashboard");
   const { t } = await getT();
   const firstName = (session.user.name ?? session.user.email ?? "there").split(" ")[0];
+  const params = await searchParams;
 
-  const outlets = await getOutletsForUser(session);
-  const outletIds = outlets.map((o) => o.id);
+  // ADMIN/GM get every active outlet; MANAGER and other scoped roles only the
+  // outlets assigned to them in user_outlets (getOutletsForUser), so the
+  // ?outlet= param can never widen a manager's view.
+  const scope = await resolveLedgerScope(session, params.outlet, t("reports.allOutlets"));
+  const { outletIds, outlets } = scope;
 
   const [
     statCards,
@@ -76,7 +86,20 @@ export default async function DashboardPage() {
       <DashboardTopbar
         title={t("nav.dashboard")}
         subtitle={t("dashboard.welcomeBack", { name: firstName })}
-      />
+      >
+        {outlets.length > 1 ? (
+          <OutletSelect
+            outlets={outlets}
+            selectedOutletId={scope.selectedOutletId}
+            allLabel={t("reports.allOutlets")}
+          />
+        ) : outlets.length === 1 ? (
+          <span className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900">
+            <StoreIcon className="h-4 w-4 text-gray-400" />
+            {outlets[0].name}
+          </span>
+        ) : null}
+      </DashboardTopbar>
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6 sm:p-8">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
