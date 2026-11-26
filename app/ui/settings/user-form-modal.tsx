@@ -28,6 +28,7 @@ export function UserFormModal({
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
   const [attendancePin, setAttendancePin] = useState(user?.attendancePin ?? "");
+  const [whatsappNumber, setWhatsappNumber] = useState(user?.whatsappNumber ?? "");
   const [roleIds, setRoleIds] = useState<number[]>(user?.roles.map((r) => r.id) ?? []);
   const [outletIds, setOutletIds] = useState<number[]>(user?.outlets.map((o) => o.id) ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +51,7 @@ export function UserFormModal({
 
   function handleSubmit() {
     setError(null);
-    const input = { name, email, roleIds, outletIds, attendancePin };
+    const input = { name, email, roleIds, outletIds, attendancePin, whatsappNumber };
 
     startTransition(async () => {
       const result =
@@ -125,6 +126,20 @@ export function UserFormModal({
               />
             </div>
           )}
+
+          <div>
+            <label className="text-xs text-gray-500">{t("login.whatsappNumber")}</label>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={whatsappNumber}
+              maxLength={30}
+              onChange={(e) => setWhatsappNumber(e.target.value)}
+              placeholder={t("login.whatsappPlaceholder")}
+              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-gray-400">{t("settings.whatsappHint")}</p>
+          </div>
 
           <div>
             <label className="text-xs text-gray-500">{t("settings.attendancePin")}</label>

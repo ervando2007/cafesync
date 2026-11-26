@@ -109,10 +109,10 @@ export function SalesOverviewChart({ data }: { data: SalesPoint[] }) {
                 x2={WIDTH - PAD_RIGHT}
                 y1={yAt(tick)}
                 y2={yAt(tick)}
-                stroke="#e1e0d9"
+                className="stroke-gray-200"
                 strokeWidth={1}
               />
-              <text x={PAD_LEFT - 8} y={yAt(tick) + 3} textAnchor="end" fontSize="9" fill="#898781">
+              <text x={PAD_LEFT - 8} y={yAt(tick) + 3} textAnchor="end" fontSize="9" className="fill-gray-500">
                 {formatShortRp(tick)}
               </text>
             </g>
@@ -129,7 +129,7 @@ export function SalesOverviewChart({ data }: { data: SalesPoint[] }) {
           <polyline
             points={lastWeekPath}
             fill="none"
-            stroke="#9ca3af"
+            className="stroke-gray-400"
             strokeWidth={2}
             strokeDasharray="6 5"
             strokeLinecap="round"
@@ -151,7 +151,7 @@ export function SalesOverviewChart({ data }: { data: SalesPoint[] }) {
               y={HEIGHT - 6}
               textAnchor="middle"
               fontSize="9"
-              fill="#898781"
+              className="fill-gray-500"
             >
               {i === 0 || i === points.length - 1 || i === hoverIndex ? p.day : p.day.split(" ")[0]}
             </text>
@@ -163,15 +163,15 @@ export function SalesOverviewChart({ data }: { data: SalesPoint[] }) {
               x2={active.x}
               y1={PAD_TOP}
               y2={baseline}
-              stroke="#c3c2b7"
+              className="stroke-gray-300"
               strokeWidth={1}
               strokeDasharray="3 3"
             />
           )}
           {active && (
             <>
-              <circle cx={active.x} cy={active.yThis} r={5} fill="#b45309" stroke="#fff" strokeWidth={2} />
-              <circle cx={active.x} cy={active.yLast} r={4} fill="#9ca3af" stroke="#fff" strokeWidth={2} />
+              <circle cx={active.x} cy={active.yThis} r={5} fill="#b45309" style={{ stroke: "var(--surface)" }} strokeWidth={2} />
+              <circle cx={active.x} cy={active.yLast} r={4} className="fill-gray-400" style={{ stroke: "var(--surface)" }} strokeWidth={2} />
             </>
           )}
         </svg>

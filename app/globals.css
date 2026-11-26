@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
+/* `dark:` utilities follow the class the theme script puts on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Card surface (what bg-white means) and the app canvas behind cards. */
+  --surface: #ffffff;
+  --canvas: #f7f5f2;
 }
 
 @theme inline {
@@ -16,4 +22,134 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Dark theme.
+ *
+ * The UI is written with light-mode utilities (bg-white, text-gray-900,
+ * border-gray-200, bg-amber-50 ...). Rather than adding dark: to ~1,600
+ * class names, dark mode re-points the palette those utilities read:
+ * the gray scale is inverted to warm dark neutrals and the -50 tints become
+ * deep tints. Utilities that can't be re-pointed through a variable without
+ * side effects (bg-white vs text-white, colored text, the hex canvases) are
+ * overridden below.
+ *
+ * Screen only: printing (receipts, QR stickers, reports) always uses the
+ * light palette.
+ */
+@media screen {
+  .dark {
+    color-scheme: dark;
+    --background: #14110e;
+    --foreground: #f4efe8;
+    --surface: #1c1814;
+    --canvas: #14110e;
+
+    --color-gray-50: #241f1a;
+    --color-gray-100: #2d2720;
+    --color-gray-200: #3b342c;
+    --color-gray-300: #4d453c;
+    --color-gray-400: #8c8378;
+    --color-gray-500: #a69d92;
+    --color-gray-600: #bdb4a9;
+    --color-gray-700: #d3cbc1;
+    --color-gray-800: #e6dfd6;
+    --color-gray-900: #f4efe8;
+
+    --color-amber-50: #2e2213;
+    --color-red-50: #331a18;
+    --color-emerald-50: #13291f;
+    --color-blue-50: #16233a;
+    --color-sky-50: #132936;
+    --color-violet-50: #241c3a;
+    --color-teal-50: #122e2a;
+    --color-pink-50: #35182a;
+    --color-orange-50: #35200f;
+    --color-yellow-200: #4d3f0e;
+  }
+}
+
+@layer utilities {
+  @media screen {
+    /* :where() keeps these at single-class specificity, so hover:/focus:
+       utilities on the same element still win over them. */
+
+    /* Surfaces */
+    :where(.dark) .bg-white {
+      background-color: var(--surface);
+    }
+    :where(.dark) .bg-white\/90 {
+      background-color: color-mix(in oklab, var(--surface) 90%, transparent);
+    }
+    :where(.dark) .bg-\[\#f7f5f2\] {
+      background-color: var(--canvas);
+    }
+    :where(.dark) .bg-\[\#f9f8f6\] {
+      background-color: #191511;
+    }
+    :where(.dark) .bg-\[\#f2ece2\] {
+      background-color: #0e0b09;
+    }
+
+    /* Light tint borders */
+    :where(.dark) .border-red-100 {
+      border-color: #4a2220;
+    }
+    :where(.dark) .border-emerald-100 {
+      border-color: #1b3a2b;
+    }
+    :where(.dark) .border-amber-100 {
+      border-color: #3d2c15;
+    }
+    :where(.dark) .hover\:border-amber-200:hover {
+      border-color: #5a4019;
+    }
+
+    /* Colored text: the -600/-800 shades are too dark on a dark surface. */
+    :where(.dark) .text-amber-700,
+    :where(.dark) .text-amber-800 {
+      color: oklch(82.8% 0.189 84.429);
+    }
+    :where(.dark) .text-red-500,
+    :where(.dark) .text-red-600,
+    :where(.dark) .text-red-700 {
+      color: oklch(70.4% 0.191 22.216);
+    }
+    :where(.dark) .text-emerald-600,
+    :where(.dark) .text-emerald-700 {
+      color: oklch(76.5% 0.177 163.223);
+    }
+    :where(.dark) .text-sky-700 {
+      color: oklch(74.6% 0.16 232.661);
+    }
+    :where(.dark) .text-blue-600,
+    :where(.dark) .text-blue-700 {
+      color: oklch(70.7% 0.165 254.624);
+    }
+    :where(.dark) .text-violet-600 {
+      color: oklch(70.2% 0.183 293.541);
+    }
+    :where(.dark) .text-teal-600 {
+      color: oklch(77.7% 0.152 181.912);
+    }
+    :where(.dark) .text-pink-600 {
+      color: oklch(71.8% 0.202 349.761);
+    }
+    :where(.dark) .text-orange-600 {
+      color: oklch(75% 0.183 55.934);
+    }
+
+    /* Hover states come after the base overrides so they still win. */
+    :where(.dark) .hover\:text-amber-700:hover {
+      color: oklch(82.8% 0.189 84.429);
+    }
+    :where(.dark) .hover\:text-amber-800:hover {
+      color: oklch(87.9% 0.169 91.605);
+    }
+    :where(.dark) .hover\:text-red-600:hover,
+    :where(.dark) .hover\:text-red-700:hover {
+      color: oklch(80.8% 0.114 19.571);
+    }
+  }
 }

@@ -108,7 +108,12 @@ export function UsersTable({
                       <span className="ml-1.5 text-xs font-normal text-gray-400">{t("settings.youSuffix")}</span>
                     )}
                   </td>
-                  <td className="px-5 py-3 text-gray-500">{user.email}</td>
+                  <td className="px-5 py-3 text-gray-500">
+                    {user.email}
+                    {user.whatsappNumber && (
+                      <span className="block text-xs text-gray-400">WA {user.whatsappNumber}</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <div className="flex flex-wrap gap-1">
                       {user.roles.length === 0 ? (

@@ -2,6 +2,7 @@ import { LoginHero } from "@/app/ui/login-hero";
 import { ResetPasswordForm } from "@/app/ui/reset-password-form";
 import { findValidResetToken } from "@/lib/password-reset";
 import { getT } from "@/lib/i18n/server";
+import { ThemeSwitcher } from "@/app/ui/theme-switcher";
 
 export default async function ResetPasswordPage({
   params,
@@ -17,18 +18,27 @@ export default async function ResetPasswordPage({
       <div className="grid w-full max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl lg:grid-cols-2">
         <LoginHero />
 
-        <div className="flex flex-col justify-center p-8 sm:p-12 lg:p-16">
-          {valid ? (
-            <>
-              <h2 className="text-3xl font-bold text-gray-900">{t("login.resetPasswordTitle")}</h2>
-              <p className="mt-2 text-gray-500">{t("login.resetPasswordDesc")}</p>
-              <ResetPasswordForm token={token} />
-            </>
-          ) : (
-            <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-              {t("login.errInvalidOrExpiredToken")}
-            </div>
-          )}
+        <div className="flex flex-col p-8 sm:p-12 lg:p-16">
+          <div className="flex justify-end">
+            <ThemeSwitcher />
+          </div>
+          <div className="mt-6 flex flex-1 flex-col justify-center">
+            {valid ? (
+              <>
+                <h2 className="text-3xl font-bold text-gray-900">
+                  {t("login.resetPasswordTitle")}
+                </h2>
+                <p className="mt-2 text-gray-500">
+                  {t("login.resetPasswordDesc")}
+                </p>
+                <ResetPasswordForm token={token} />
+              </>
+            ) : (
+              <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {t("login.errInvalidOrExpiredToken")}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

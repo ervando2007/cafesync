@@ -8,6 +8,7 @@ import pool from "@/lib/db";
 import { getT } from "@/lib/i18n/server";
 import type { TranslateFn } from "@/lib/i18n/translate";
 import { needsOutletAssignment } from "@/lib/role-scope";
+import { checkWhatsAppNumberForUser } from "@/lib/whatsapp";
 import {
   allSubGm,
   canManageUser,
@@ -77,6 +78,18 @@ interface UserInput {
   roleIds: number[];
   outletIds: number[];
   attendancePin?: string;
+  whatsappNumber?: string;
+}
+
+/** Normalised number to save, or a translated error. */
+async function resolveWhatsApp(
+  input: UserInput,
+  t: TranslateFn,
+  excludeUserId?: number,
+): Promise<{ value: string | null } | { error: string }> {
+  const check = await checkWhatsAppNumberForUser(input.whatsappNumber, excludeUserId);
+  if (check.ok) return { value: check.value };
+  return { error: t(check.reason === "invalid" ? "settings.errWhatsAppInvalid" : "settings.errWhatsAppExists") };
 }
 
 function validateUserInput(input: UserInput, t: TranslateFn): string | null {
@@ -127,6 +140,8 @@ export async function createUser(
   if (input.password.length < 6) {
     return { ok: false, message: t("settings.errPasswordMinLength") };
   }
+  const whatsapp = await resolveWhatsApp(input, t);
+  if ("error" in whatsapp) return { ok: false, message: whatsapp.error };
 
   const conn = await pool.getConnection();
   try {
@@ -134,8 +149,8 @@ export async function createUser(
     const passwordHash = await bcrypt.hash(input.password, 10);
 
     const [result] = await conn.query(
-      "INSERT INTO users (name, email, password_hash, attendance_pin, status) VALUES (?, ?, ?, ?, 'ACTIVE')",
-      [input.name.trim(), input.email.trim(), passwordHash, cleanPin(input.attendancePin)],
+      "INSERT INTO users (name, email, password_hash, attendance_pin, whatsapp_number, status) VALUES (?, ?, ?, ?, ?, 'ACTIVE')",
+      [input.name.trim(), input.email.trim(), passwordHash, cleanPin(input.attendancePin), whatsapp.value],
     );
     const userId = (result as { insertId: number }).insertId;
 
@@ -168,6 +183,9 @@ export async function updateUser(input: UserInput & { id: number }): Promise<Act
     (await outletAssignmentError(input, t));
   if (scopeError) return { ok: false, message: scopeError };
 
+  const whatsapp = await resolveWhatsApp(input, t, input.id);
+  if ("error" in whatsapp) return { ok: false, message: whatsapp.error };
+
   const isSelf = Number(session.user.id) === input.id;
   if (isSelf) {
     const [adminRole] = await pool.query<RowDataPacket[]>(
@@ -184,8 +202,8 @@ export async function updateUser(input: UserInput & { id: number }): Promise<Act
     await conn.beginTransaction();
 
     const [result] = await conn.query(
-      "UPDATE users SET name = ?, email = ?, attendance_pin = ? WHERE id = ?",
-      [input.name.trim(), input.email.trim(), cleanPin(input.attendancePin), input.id],
+      "UPDATE users SET name = ?, email = ?, attendance_pin = ?, whatsapp_number = ? WHERE id = ?",
+      [input.name.trim(), input.email.trim(), cleanPin(input.attendancePin), whatsapp.value, input.id],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       await conn.rollback();

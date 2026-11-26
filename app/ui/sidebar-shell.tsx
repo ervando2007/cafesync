@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { CoffeeCupIcon } from "@/app/ui/icons";
 import { LogoutButton } from "@/app/ui/logout-button";
+import { ThemeSwitcher } from "@/app/ui/theme-switcher";
 import { SidebarNav } from "@/app/ui/sidebar-nav";
 import { navItemsForMenuKeys } from "@/app/ui/sidebar-nav-items";
 import { MenuIcon, XIcon } from "@/app/ui/dashboard/icons";
@@ -180,6 +181,8 @@ export function SidebarShell({
           </Link>
 
           {extra}
+
+          <ThemeSwitcher variant="sidebar" className="flex w-full" />
 
           <LogoutButton />
         </div>

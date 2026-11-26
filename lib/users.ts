@@ -87,13 +87,14 @@ export interface UserRecord {
   email: string;
   status: "ACTIVE" | "INACTIVE" | "LOCKED";
   attendancePin: string | null;
+  whatsappNumber: string | null;
   roles: UserRoleRef[];
   outlets: UserOutletRef[];
 }
 
 export async function getAllUsersForAdmin(): Promise<UserRecord[]> {
   const [users] = await pool.query<RowDataPacket[]>(
-    "SELECT id, name, email, status, attendance_pin AS attendancePin FROM users ORDER BY name",
+    "SELECT id, name, email, status, attendance_pin AS attendancePin, whatsapp_number AS whatsappNumber FROM users ORDER BY name",
   );
   const [roleRows] = await pool.query<RowDataPacket[]>(
     `SELECT ur.user_id AS userId, r.id, r.code, r.name
@@ -112,6 +113,7 @@ export async function getAllUsersForAdmin(): Promise<UserRecord[]> {
       email: String(u.email),
       status: u.status as "ACTIVE" | "INACTIVE" | "LOCKED",
       attendancePin: u.attendancePin === null ? null : String(u.attendancePin),
+      whatsappNumber: u.whatsappNumber ? String(u.whatsappNumber) : null,
       roles: roleRows
         .filter((r) => Number(r.userId) === userId)
         .map((r) => ({ id: Number(r.id), code: String(r.code), name: String(r.name) })),

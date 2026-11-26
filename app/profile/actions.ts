@@ -8,6 +8,7 @@ import type { RowDataPacket } from "mysql2";
 import { requireSession } from "@/lib/auth-guard";
 import pool from "@/lib/db";
 import { getT } from "@/lib/i18n/server";
+import { checkWhatsAppNumberForUser } from "@/lib/whatsapp";
 
 const AVATAR_DIR = path.join(process.cwd(), "public", "uploads", "avatars");
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -37,15 +38,21 @@ export async function updateProfile(input: {
   const { t } = await getT();
   const name = input.name.trim();
   const email = input.email.trim();
-  const whatsappNumber = input.whatsappNumber.trim();
   const address = input.address.trim();
   if (!name) return { ok: false, message: t("inventory.errNameRequired") };
   if (!email || !email.includes("@")) return { ok: false, message: t("settings.errValidEmailRequired") };
+  const whatsapp = await checkWhatsAppNumberForUser(input.whatsappNumber, Number(session.user.id));
+  if (!whatsapp.ok) {
+    return {
+      ok: false,
+      message: t(whatsapp.reason === "invalid" ? "settings.errWhatsAppInvalid" : "settings.errWhatsAppExists"),
+    };
+  }
 
   try {
     const [result] = await pool.query(
       "UPDATE users SET name = ?, email = ?, whatsapp_number = ?, address = ? WHERE id = ?",
-      [name, email, whatsappNumber || null, address || null, Number(session.user.id)],
+      [name, email, whatsapp.value, address || null, Number(session.user.id)],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       return { ok: false, message: t("settings.errUserNotFound") };

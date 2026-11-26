@@ -9,6 +9,7 @@ import { AvatarUploader } from "@/app/ui/profile/avatar-uploader";
 import { ProfileInfoForm } from "@/app/ui/profile/profile-info-form";
 import { ChangePasswordForm } from "@/app/ui/profile/change-password-form";
 import { LanguageSwitcher } from "@/app/ui/language-switcher";
+import { ThemeSwitcher } from "@/app/ui/theme-switcher";
 import { getT } from "@/lib/i18n/server";
 
 export default async function ProfilePage() {
@@ -83,6 +84,13 @@ export default async function ProfilePage() {
           <p className="mt-0.5 text-xs text-gray-400">{t("profile.languageDesc")}</p>
           <div className="mt-4">
             <LanguageSwitcher />
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-gray-900">{t("login.theme")}</h2>
+          <div className="mt-4">
+            <ThemeSwitcher showLabels />
           </div>
         </div>
       </div>

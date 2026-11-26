@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CoffeeCupIcon } from "@/app/ui/icons";
 import { LanguageSwitcher } from "@/app/ui/language-switcher";
+import { ThemeSwitcher } from "@/app/ui/theme-switcher";
 import { useI18n } from "@/app/i18n-provider";
 
 export function OrderTopNav({ menuHref = "/order" }: { menuHref?: string }) {
@@ -30,7 +31,10 @@ export function OrderTopNav({ menuHref = "/order" }: { menuHref?: string }) {
           </Link>
         </nav>
 
-        <LanguageSwitcher className="hidden sm:block" />
+        <div className="flex items-center gap-2">
+          <ThemeSwitcher />
+          <LanguageSwitcher className="hidden sm:block" />
+        </div>
       </div>
     </header>
   );
