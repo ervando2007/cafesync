@@ -1,5 +1,6 @@
 export const en = {
   common: {
+    tooManyAttempts: "Too many attempts. Please wait a few minutes and try again.",
     save: "Save",
     saveChanges: "Save Changes",
     saving: "Saving...",
@@ -614,7 +615,7 @@ export const en = {
     namePlaceholder: "e.g. Budi Santoso",
     emailPlaceholder: "e.g. budi@cafesync.local",
     password: "Password",
-    minSixChars: "Minimum 6 characters",
+    minPasswordChars: "Minimum 8 characters",
     roles: "Roles",
     outletAccess: "Outlet Access",
     outletAccessHint: "Manager, Accounting and Cashier only see the outlets checked here. The first checked outlet is used as the default.",
@@ -627,7 +628,7 @@ export const en = {
     colRole: "Role",
     errValidEmailRequired: "A valid email is required.",
     errSelectAtLeastOneRole: "Select at least one role.",
-    errPasswordMinLength: "Password must be at least 6 characters.",
+    errPasswordMinLength: "Password must be at least 8 characters.",
     errEmailExists: "A user with this email already exists.",
     errCouldNotSaveUser: "Could not save user. Please try again.",
     errCannotRemoveOwnAdmin: "You cannot remove your own Administrator role.",
@@ -778,6 +779,7 @@ export const en = {
     errCouldNotPlaceOrder: "Could not place your order. Please try again.",
   },
   profile: {
+    currentPasswordForContactChange: "Enter your current password to change your email or WhatsApp number.",
     account: "Account",
     myProfile: "My Profile",
     photo: "Photo",

@@ -100,7 +100,9 @@ export interface TrackedOrder {
   items: TrackedOrderItem[];
 }
 
-export async function getOrderByNo(orderNo: string): Promise<TrackedOrder | null> {
+/** Public order tracking: looked up by the random token handed out at checkout, never by order number. */
+export async function getOrderByTrackingToken(token: string): Promise<TrackedOrder | null> {
+  if (!/^[0-9a-f]{32}$/.test(token)) return null;
   const [orderRows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
     `SELECT o.order_no, o.status, o.order_channel, o.subtotal, o.discount_total, o.tax_total,
             o.grand_total, o.ordered_at, o.guest_name, ot.name AS outlet_name, ot.code AS outlet_code,
@@ -108,8 +110,8 @@ export async function getOrderByNo(orderNo: string): Promise<TrackedOrder | null
      FROM orders o
      JOIN outlets ot ON ot.id = o.outlet_id
      LEFT JOIN dining_tables t ON t.id = o.table_id
-     WHERE o.order_no = ? LIMIT 1`,
-    [orderNo],
+     WHERE o.tracking_token = ? LIMIT 1`,
+    [token],
   );
   const order = orderRows[0];
   if (!order) return null;
@@ -118,8 +120,8 @@ export async function getOrderByNo(orderNo: string): Promise<TrackedOrder | null
     `SELECT p.name, oi.qty, oi.unit_price, oi.line_total
      FROM order_items oi JOIN products p ON p.id = oi.product_id
      JOIN orders o ON o.id = oi.order_id
-     WHERE o.order_no = ?`,
-    [orderNo],
+     WHERE o.tracking_token = ?`,
+    [token],
   );
 
   return {

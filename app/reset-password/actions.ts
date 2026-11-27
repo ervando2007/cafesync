@@ -16,7 +16,7 @@ export async function resetPassword(input: {
 }): Promise<ActionResult> {
   const { t } = await getT();
 
-  if (input.newPassword.length < 6) {
+  if (input.newPassword.length < 8) {
     return { ok: false, message: t("settings.errPasswordMinLength") };
   }
   if (input.newPassword !== input.confirmPassword) {

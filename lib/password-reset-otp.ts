@@ -9,6 +9,8 @@ export const OTP_TTL_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
 /** Minimum gap between two OTPs for the same user. */
 const RESEND_COOLDOWN_SECONDS = 60;
+/** OTPs per user per day — caps total guesses at MAX_OTPS_PER_DAY * MAX_ATTEMPTS. */
+const MAX_OTPS_PER_DAY = 5;
 
 function hashOtp(userId: number, otp: string): string {
   const secret = process.env.AUTH_SECRET ?? "";
@@ -42,6 +44,12 @@ export async function createResetOtp(userId: number): Promise<string | null> {
     [userId, RESEND_COOLDOWN_SECONDS],
   );
   if (recent.length) return null;
+
+  const [[today]] = await pool.query<RowDataPacket[]>(
+    "SELECT COUNT(*) AS c FROM password_reset_otps WHERE user_id = ? AND created_at > NOW() - INTERVAL 1 DAY",
+    [userId],
+  );
+  if (Number(today.c) >= MAX_OTPS_PER_DAY) return null;
 
   const otp = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await pool.query(

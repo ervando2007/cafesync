@@ -63,6 +63,7 @@ export default async function ProfilePage() {
               email={user.email}
               whatsappNumber={user.whatsapp_number ?? ""}
               address={user.address ?? ""}
+              hasPassword={Boolean(user.password_hash)}
             />
           </div>
         </div>

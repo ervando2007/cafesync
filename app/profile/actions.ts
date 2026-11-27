@@ -8,7 +8,8 @@ import type { RowDataPacket } from "mysql2";
 import { requireSession } from "@/lib/auth-guard";
 import pool from "@/lib/db";
 import { getT } from "@/lib/i18n/server";
-import { checkWhatsAppNumberForUser } from "@/lib/whatsapp";
+import { checkWhatsAppNumberForUser, normalizeWhatsAppNumber } from "@/lib/whatsapp";
+import { findUserById } from "@/lib/users";
 
 const AVATAR_DIR = path.join(process.cwd(), "public", "uploads", "avatars");
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -33,6 +34,7 @@ export async function updateProfile(input: {
   email: string;
   whatsappNumber: string;
   address: string;
+  currentPassword?: string;
 }): Promise<ActionResult> {
   const session = await requireSession();
   const { t } = await getT();
@@ -47,6 +49,21 @@ export async function updateProfile(input: {
       ok: false,
       message: t(whatsapp.reason === "invalid" ? "settings.errWhatsAppInvalid" : "settings.errWhatsAppExists"),
     };
+  }
+
+  // Email and WhatsApp are password-reset channels: changing either needs the
+  // current password, so a hijacked session can't be turned into a takeover.
+  const current = await findUserById(session.user.id);
+  if (!current) return { ok: false, message: t("settings.errUserNotFound") };
+  const contactChanged =
+    email.toLowerCase() !== current.email.toLowerCase() ||
+    (whatsapp.value ?? null) !== (normalizeWhatsAppNumber(current.whatsapp_number ?? "") || null);
+  if (contactChanged && current.password_hash) {
+    const passwordOk =
+      typeof input.currentPassword === "string" &&
+      input.currentPassword.length > 0 &&
+      (await bcrypt.compare(input.currentPassword, current.password_hash));
+    if (!passwordOk) return { ok: false, message: t("profile.errCurrentPasswordIncorrect") };
   }
 
   try {
@@ -77,6 +94,8 @@ async function getCurrentAvatarUrl(userId: number): Promise<string | null> {
 
 async function deleteAvatarFile(avatarUrl: string): Promise<void> {
   if (!avatarUrl.startsWith("/uploads/avatars/")) return;
+  // Plain file names only — never follow "../" out of the uploads folder.
+  if (!/^[\w-]+\.(jpg|png|webp)$/.test(avatarUrl.slice("/uploads/avatars/".length))) return;
   const filePath = path.join(process.cwd(), "public", avatarUrl);
   await unlink(filePath).catch(() => {});
 }
@@ -143,7 +162,7 @@ export async function changePassword(input: {
   const { t } = await getT();
   const userId = Number(session.user.id);
 
-  if (input.newPassword.length < 6) {
+  if (input.newPassword.length < 8) {
     return { ok: false, message: t("settings.errPasswordMinLength") };
   }
   if (input.newPassword !== input.confirmPassword) {

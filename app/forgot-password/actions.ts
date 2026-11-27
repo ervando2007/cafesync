@@ -1,7 +1,8 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { headers } from "next/headers";
+import { getRequestBaseUrl } from "@/lib/base-url";
+import { clientIp, hit } from "@/lib/rate-limit";
 import { findUserByEmail } from "@/lib/users";
 import { createResetToken } from "@/lib/password-reset";
 import { sendPasswordResetEmail } from "@/lib/mailer";
@@ -14,26 +15,23 @@ import {
   findUserIdByWhatsApp,
 } from "@/lib/password-reset-otp";
 
-async function getBaseUrl(): Promise<string> {
-  const headerList = await headers();
-  const host = headerList.get("host") ?? "localhost:3000";
-  const proto =
-    headerList.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
-
 export async function requestPasswordReset(email: string): Promise<{ ok: true; message: string }> {
   const { t } = await getT();
   const genericMessage = t("login.resetLinkSentGeneric");
 
-  const trimmedEmail = email.trim();
-  if (!trimmedEmail) return { ok: true, message: genericMessage };
+  const trimmedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+  if (!trimmedEmail || trimmedEmail.length > 254) return { ok: true, message: genericMessage };
+  // Throttled silently: the answer stays generic so it can't be used to probe accounts.
+  const ip = await clientIp();
+  if (!hit(`reset-email:ip:${ip}`, 5, 15 * 60) || !hit(`reset-email:to:${trimmedEmail}`, 3, 60 * 60)) {
+    return { ok: true, message: genericMessage };
+  }
 
   try {
     const user = await findUserByEmail(trimmedEmail);
     if (user && user.password_hash && user.status === "ACTIVE") {
       const rawToken = await createResetToken(user.id);
-      const baseUrl = await getBaseUrl();
+      const baseUrl = await getRequestBaseUrl();
       const resetUrl = `${baseUrl}/reset-password/${rawToken}`;
       await sendPasswordResetEmail(user.email, resetUrl);
     }
@@ -49,6 +47,11 @@ export async function requestPasswordReset(email: string): Promise<{ ok: true; m
 export async function requestWhatsAppOtp(whatsappNumber: string): Promise<{ ok: true; message: string }> {
   const { t } = await getT();
   const genericMessage = t("login.otpSentGeneric");
+  if (typeof whatsappNumber !== "string" || whatsappNumber.length > 32) {
+    return { ok: true, message: genericMessage };
+  }
+  const ip = await clientIp();
+  if (!hit(`otp-send:ip:${ip}`, 5, 15 * 60)) return { ok: true, message: genericMessage };
 
   try {
     const match = await findUserIdByWhatsApp(whatsappNumber);
@@ -77,9 +80,12 @@ export async function resetPasswordWithOtp(input: {
 }): Promise<{ ok: boolean; message?: string }> {
   const { t } = await getT();
 
-  const otp = input.otp.trim();
+  if (!hit(`otp-verify:ip:${await clientIp()}`, 10, 15 * 60)) {
+    return { ok: false, message: t("common.tooManyAttempts") };
+  }
+  const otp = String(input.otp ?? "").trim();
   if (!/^\d{6}$/.test(otp)) return { ok: false, message: t("login.errInvalidOtp") };
-  if (input.newPassword.length < 6) return { ok: false, message: t("settings.errPasswordMinLength") };
+  if (input.newPassword.length < 8) return { ok: false, message: t("settings.errPasswordMinLength") };
   if (input.newPassword !== input.confirmPassword) {
     return { ok: false, message: t("profile.errPasswordMismatch") };
   }

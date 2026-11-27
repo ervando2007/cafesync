@@ -137,7 +137,7 @@ export async function createUser(
     (await userScopeError(session, t, { roleIds: input.roleIds })) ??
     (await outletAssignmentError(input, t));
   if (scopeError) return { ok: false, message: scopeError };
-  if (input.password.length < 6) {
+  if (input.password.length < 8) {
     return { ok: false, message: t("settings.errPasswordMinLength") };
   }
   const whatsapp = await resolveWhatsApp(input, t);
@@ -237,7 +237,7 @@ export async function resetUserPassword(input: {
   const { t } = await getT();
   const scopeError = await userScopeError(session, t, { targetUserId: input.id });
   if (scopeError) return { ok: false, message: scopeError };
-  if (input.password.length < 6) {
+  if (input.password.length < 8) {
     return { ok: false, message: t("settings.errPasswordMinLength") };
   }
 

@@ -239,7 +239,7 @@ function WhatsAppResetForm() {
             required
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder={t("settings.minSixChars")}
+            placeholder={t("settings.minPasswordChars")}
             className={INPUT_CLASS}
           />
         </div>

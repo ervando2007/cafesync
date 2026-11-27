@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getOrderByNo } from "@/lib/customer-menu";
+import { getOrderByTrackingToken } from "@/lib/customer-menu";
 import { OrderTopNav } from "@/app/ui/order/topnav";
 import { SiteFooter } from "@/app/ui/order/site-footer";
 import { OrderStatusTimeline } from "@/app/ui/order/order-status-timeline";
@@ -13,10 +13,10 @@ function formatRp(value: number) {
 export default async function OrderTrackPage({
   params,
 }: {
-  params: Promise<{ orderNo: string }>;
+  params: Promise<{ token: string }>;
 }) {
-  const { orderNo } = await params;
-  const order = await getOrderByNo(orderNo);
+  const { token } = await params;
+  const order = await getOrderByTrackingToken(token);
   if (!order) notFound();
   const { t } = await getT();
   const menuQuery = new URLSearchParams({ outlet: order.outletCode });

@@ -58,7 +58,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           type="password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          placeholder={t("settings.minSixChars")}
+          placeholder={t("settings.minPasswordChars")}
           className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
         />
       </div>

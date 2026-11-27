@@ -23,10 +23,14 @@ export default async function ProductsPage() {
   ]);
   const outletCount = outlets.filter((o) => o.status === "ACTIVE").length;
 
+  // Only the outlets this user may manage — prices are per outlet.
+  const manageableOutletIds = new Set(outlets.map((o) => o.id));
   const outletPricesByProduct: Record<number, OutletPriceRow[]> = {};
   await Promise.all(
     products.map(async (product) => {
-      outletPricesByProduct[product.id] = await getOutletPricesForProduct(product.id, "DINE_IN");
+      outletPricesByProduct[product.id] = (await getOutletPricesForProduct(product.id, "DINE_IN")).filter(
+        (row) => manageableOutletIds.has(row.outletId),
+      );
     }),
   );
 

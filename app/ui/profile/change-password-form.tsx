@@ -56,7 +56,7 @@ export function ChangePasswordForm() {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder={t("settings.minSixChars")}
+              placeholder={t("settings.minPasswordChars")}
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-amber-500 focus:outline-none"
             />
           </div>

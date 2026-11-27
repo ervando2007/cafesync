@@ -1,13 +1,14 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import pool from "@/lib/db";
 import { auth } from "@/auth";
 import { nextOrderNo } from "@/lib/order-no";
-import { getOrderByNo, type TrackedOrder } from "@/lib/customer-menu";
 import { pricingChannelFor } from "@/lib/pricing-channel";
 import { getT } from "@/lib/i18n/server";
 import { findShortIngredients } from "@/lib/product-availability";
+import { clientIp, hit } from "@/lib/rate-limit";
 
 export type CustomerOrderType = "DINE_IN_QR" | "TAKEAWAY";
 
@@ -34,7 +35,19 @@ export type PlaceOrderInput =
 export interface PlaceOrderResult {
   ok: true;
   orderNo: string;
+  /** Secret for /order/track/<token>; the order number itself is guessable. */
+  trackingToken: string;
 }
+
+const MAX_LINES = 50;
+const MAX_QTY = 99;
+const MAX_NOTES = 255;
+const MAX_GUEST_NAME = 150;
+/** Public, unauthenticated checkout: orders per client IP per window. */
+const ORDER_LIMIT = 10;
+const ORDER_WINDOW_SECONDS = 10 * 60;
+
+const isId = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0;
 
 export interface PlaceOrderError {
   ok: false;
@@ -45,13 +58,37 @@ export async function placeOrder(
   input: PlaceOrderInput,
 ): Promise<PlaceOrderResult | PlaceOrderError> {
   const { t } = await getT();
-  if (!input.items.length) {
+  if (!Array.isArray(input.items) || !input.items.length) {
     return { ok: false, message: t("order.cartEmpty") };
   }
+  if (
+    !isId(input.outletId) ||
+    (input.orderType !== "DINE_IN_QR" && input.orderType !== "TAKEAWAY") ||
+    (input.orderType === "DINE_IN_QR" && !isId(input.tableId)) ||
+    input.items.length > MAX_LINES ||
+    input.items.some(
+      (item) =>
+        !isId(item?.productId) ||
+        !Number.isInteger(item.qty) ||
+        item.qty < 1 ||
+        item.qty > MAX_QTY ||
+        (item.notes != null && (typeof item.notes !== "string" || item.notes.length > MAX_NOTES)),
+    )
+  ) {
+    return { ok: false, message: t("order.errItemsNoLongerAvailable") };
+  }
 
-  const guestName = input.orderType === "TAKEAWAY" ? input.guestName.trim() : null;
+  const guestName =
+    input.orderType === "TAKEAWAY" && typeof input.guestName === "string" ? input.guestName.trim() : null;
   if (input.orderType === "TAKEAWAY" && !guestName) {
     return { ok: false, message: t("order.enterYourName") };
+  }
+  if (guestName && guestName.length > MAX_GUEST_NAME) {
+    return { ok: false, message: t("order.enterYourName") };
+  }
+
+  if (!hit(`order:${await clientIp()}`, ORDER_LIMIT, ORDER_WINDOW_SECONDS)) {
+    return { ok: false, message: t("common.tooManyAttempts") };
   }
 
   const conn = await pool.getConnection();
@@ -134,13 +171,15 @@ export async function placeOrder(
       session?.user && session.user.roles.includes("CUSTOMER") ? Number(session.user.id) : null;
 
     const orderNo = await nextOrderNo(conn, input.outletId);
+    const trackingToken = randomBytes(16).toString("hex");
     const [result] = await conn.query<ResultSetHeader>(
       `INSERT INTO orders
-         (order_no, outlet_id, customer_id, guest_name, table_id, order_channel, status,
+         (order_no, tracking_token, outlet_id, customer_id, guest_name, table_id, order_channel, status,
           subtotal, discount_total, tax_total, grand_total, ordered_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, 0, ?, ?, NOW(), NULL)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, 0, ?, ?, NOW(), NULL)`,
       [
         orderNo,
+        trackingToken,
         input.outletId,
         customerId,
         guestName,
@@ -169,7 +208,7 @@ export async function placeOrder(
     }
 
     await conn.commit();
-    return { ok: true, orderNo };
+    return { ok: true, orderNo, trackingToken };
   } catch (error) {
     await conn.rollback();
     console.error("placeOrder failed", error);
@@ -177,8 +216,4 @@ export async function placeOrder(
   } finally {
     conn.release();
   }
-}
-
-export async function trackOrder(orderNo: string): Promise<TrackedOrder | null> {
-  return getOrderByNo(orderNo);
 }

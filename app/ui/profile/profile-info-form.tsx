@@ -11,11 +11,13 @@ export function ProfileInfoForm({
   email,
   whatsappNumber,
   address,
+  hasPassword,
 }: {
   name: string;
   email: string;
   whatsappNumber: string;
   address: string;
+  hasPassword: boolean;
 }) {
   const router = useRouter();
   const { update } = useSession();
@@ -24,6 +26,11 @@ export function ProfileInfoForm({
   const [emailInput, setEmailInput] = useState(email);
   const [whatsappInput, setWhatsappInput] = useState(whatsappNumber);
   const [addressInput, setAddressInput] = useState(address);
+  const [currentPassword, setCurrentPassword] = useState("");
+  // Email and WhatsApp are both password-reset channels, so changing either
+  // needs the current password (when the account has one).
+  const contactChanged = emailInput.trim() !== email || whatsappInput.trim() !== whatsappNumber.trim();
+  const needsPassword = hasPassword && contactChanged;
   const [message, setMessage] = useState<{ type: "error" | "info"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -35,11 +42,13 @@ export function ProfileInfoForm({
         email: emailInput,
         whatsappNumber: whatsappInput,
         address: addressInput,
+        currentPassword: needsPassword ? currentPassword : undefined,
       });
       if (!result.ok) {
         setMessage({ type: "error", text: result.message ?? t("common.somethingWentWrong") });
         return;
       }
+      setCurrentPassword("");
       await update({});
       router.refresh();
       setMessage({ type: "info", text: t("profile.profileUpdatedSuccess") });
@@ -95,6 +104,20 @@ export function ProfileInfoForm({
           />
         </div>
       </div>
+
+      {needsPassword && (
+        <div className="mt-4">
+          <label className="text-xs text-gray-500">{t("profile.currentPassword")}</label>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-amber-500 focus:outline-none sm:w-1/2"
+          />
+          <p className="mt-1 text-xs text-gray-400">{t("profile.currentPasswordForContactChange")}</p>
+        </div>
+      )}
 
       <div className="mt-4 flex justify-end">
         <button

@@ -69,6 +69,7 @@ export function CustomerMenu({
   const [showTableModal, setShowTableModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmedOrderNo, setConfirmedOrderNo] = useState<string | null>(null);
+  const [trackingToken, setTrackingToken] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const catalog = bundle.catalogByChannel[pricingChannelFor(orderType)] ?? EMPTY_CATALOG;
@@ -172,6 +173,7 @@ export function CustomerMenu({
         return;
       }
       setConfirmedOrderNo(result.orderNo);
+      setTrackingToken(result.trackingToken);
       setCart([]);
     });
   }
@@ -200,7 +202,7 @@ export function CustomerMenu({
             </p>
             <div className="mt-6 space-y-2.5">
               <Link
-                href={`/order/track/${confirmedOrderNo}`}
+                href={`/order/track/${trackingToken}`}
                 className="block w-full rounded-xl bg-amber-700 py-3 text-sm font-semibold text-white hover:bg-amber-800"
               >
                 {t("order.trackOrderStatus")}

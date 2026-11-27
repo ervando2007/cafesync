@@ -2,6 +2,7 @@ import type { en } from "./en";
 
 export const id: typeof en = {
   common: {
+    tooManyAttempts: "Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.",
     save: "Simpan",
     saveChanges: "Simpan Perubahan",
     saving: "Menyimpan...",
@@ -616,7 +617,7 @@ export const id: typeof en = {
     namePlaceholder: "cth. Budi Santoso",
     emailPlaceholder: "cth. budi@cafesync.local",
     password: "Kata Sandi",
-    minSixChars: "Minimal 6 karakter",
+    minPasswordChars: "Minimal 8 karakter",
     roles: "Peran",
     outletAccess: "Akses Outlet",
     outletAccessHint: "Manager, Accounting, dan Kasir hanya melihat outlet yang dicentang di sini. Outlet pertama yang dicentang digunakan sebagai default.",
@@ -629,7 +630,7 @@ export const id: typeof en = {
     colRole: "Peran",
     errValidEmailRequired: "Email yang valid wajib diisi.",
     errSelectAtLeastOneRole: "Pilih minimal satu peran.",
-    errPasswordMinLength: "Kata sandi minimal 6 karakter.",
+    errPasswordMinLength: "Kata sandi minimal 8 karakter.",
     errEmailExists: "Pengguna dengan email ini sudah ada.",
     errCouldNotSaveUser: "Tidak dapat menyimpan pengguna. Silakan coba lagi.",
     errCannotRemoveOwnAdmin: "Anda tidak dapat menghapus peran Administrator Anda sendiri.",
@@ -780,6 +781,7 @@ export const id: typeof en = {
     errCouldNotPlaceOrder: "Tidak dapat mengirim pesanan Anda. Silakan coba lagi.",
   },
   profile: {
+    currentPasswordForContactChange: "Masukkan kata sandi saat ini untuk mengganti email atau nomor WhatsApp.",
     account: "Akun",
     myProfile: "Profil Saya",
     photo: "Foto",

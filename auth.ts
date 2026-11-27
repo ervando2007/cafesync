@@ -13,6 +13,19 @@ import {
   touchLastLogin,
 } from "@/lib/users";
 import { SESSION_IDLE_SECONDS } from "@/lib/session-config";
+import { hit, isLimited, reset } from "@/lib/rate-limit";
+
+/** Failed password logins allowed per window, per account and per client IP. */
+const LOGIN_FAILS_PER_EMAIL = 10;
+const LOGIN_FAILS_PER_IP = 30;
+const LOGIN_WINDOW_SECONDS = 15 * 60;
+/** How often a live session re-reads the user's status and roles from the DB. */
+const SESSION_RECHECK_SECONDS = 2 * 60;
+
+function requestIp(request: Request | undefined): string {
+  const h = request?.headers;
+  return h?.get("x-real-ip")?.trim() || h?.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+}
 
 const credentialsSchema = z.object({
   email: z.email(),
@@ -30,21 +43,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(rawCredentials) {
+      async authorize(rawCredentials, request) {
         const parsed = credentialsSchema.safeParse(rawCredentials);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
 
+        const emailKey = `login:email:${email.toLowerCase()}`;
+        const ipKey = `login:ip:${requestIp(request)}`;
+        if (isLimited(emailKey, LOGIN_FAILS_PER_EMAIL) || isLimited(ipKey, LOGIN_FAILS_PER_IP)) return null;
+        const fail = () => {
+          hit(emailKey, LOGIN_FAILS_PER_EMAIL, LOGIN_WINDOW_SECONDS);
+          hit(ipKey, LOGIN_FAILS_PER_IP, LOGIN_WINDOW_SECONDS);
+          return null;
+        };
+
         const user = await findUserByEmail(email);
-        if (!user || !user.password_hash) return null;
-        if (user.status !== "ACTIVE") return null;
+        if (!user || !user.password_hash) return fail();
+        if (user.status !== "ACTIVE") return fail();
 
         const passwordMatches = await bcrypt.compare(
           password,
           user.password_hash,
         );
-        if (!passwordMatches) return null;
+        if (!passwordMatches) return fail();
 
+        reset(emailKey);
         await touchLastLogin(user.id);
 
         return {
@@ -102,6 +125,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.name = user.name;
         token.email = user.email;
         token.picture = user.image;
+        token.checkedAt = Date.now();
+      } else if (
+        token.sub &&
+        Date.now() - (typeof token.checkedAt === "number" ? token.checkedAt : 0) > SESSION_RECHECK_SECONDS * 1000
+      ) {
+        // Deactivating a user or changing their roles must reach sessions that
+        // are already open, not only the next login: re-read both periodically.
+        const current = await findUserById(token.sub);
+        if (!current || current.status !== "ACTIVE") return null;
+        token.roles = await findUserRoleCodes(token.sub);
+        token.checkedAt = Date.now();
       }
       // Fired by the client calling next-auth/react's update() — re-reads the
       // profile fields from the DB so a self-service name/photo change shows
@@ -118,7 +152,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user && token.sub) session.user.id = token.sub;
-      if (session.user) session.user.roles = token.roles ?? [];
+      if (session.user) session.user.roles = Array.isArray(token.roles) ? (token.roles as string[]) : [];
       if (session.user) session.user.name = (token.name as string | null) ?? session.user.name;
       if (session.user) session.user.email = (token.email as string | null) ?? session.user.email;
       if (session.user) session.user.image = (token.picture as string | null) ?? null;

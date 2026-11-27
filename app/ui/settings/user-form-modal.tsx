@@ -121,7 +121,7 @@ export function UserFormModal({
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={t("settings.minSixChars")}
+                placeholder={t("settings.minPasswordChars")}
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
               />
             </div>

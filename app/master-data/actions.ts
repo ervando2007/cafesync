@@ -11,6 +11,8 @@ import type { TranslateFn } from "@/lib/i18n/translate";
 import type { AccountType } from "@/lib/accounting";
 import { openingIneligibleReason } from "@/lib/opening-balances";
 import { getOutletPricesForProduct, type OutletPriceRow } from "@/lib/products";
+import { getOutletsForManagement } from "@/lib/outlets";
+import { PRICING_CHANNELS } from "@/lib/pricing-channel";
 import { requireMenu } from "@/lib/menu-access";
 import { SUBMENU_ROLES } from "@/lib/menu-rules";
 
@@ -238,8 +240,26 @@ export async function getOutletPricesForProductChannel(
   productId: number,
   channel: string,
 ): Promise<OutletPriceRow[]> {
-  await requireMenu("master_data");
-  return getOutletPricesForProduct(productId, channel);
+  const session = await requireMenu("master_data");
+  const manageable = new Set((await getOutletsForManagement(session)).map((o) => o.id));
+  const rows = await getOutletPricesForProduct(productId, channel);
+  return rows.filter((row) => manageable.has(row.outletId));
+}
+
+/** Prices are per outlet: a user may only touch outlets they're assigned to. */
+async function outletPricingDenied(
+  session: Awaited<ReturnType<typeof requireMenu>>,
+  input: { outletId: number; productId: number; channel: string },
+  t: TranslateFn,
+): Promise<string | null> {
+  if (!Number.isSafeInteger(input.outletId) || !Number.isSafeInteger(input.productId)) {
+    return t("masterData.errProductNotFound");
+  }
+  if (!(PRICING_CHANNELS as readonly string[]).includes(input.channel)) {
+    return t("masterData.errCouldNotSaveOutletPricing");
+  }
+  if (!(await hasOutletAccess(session, input.outletId))) return t("inventory.errNoOutletAccess");
+  return null;
 }
 
 export async function upsertOutletProduct(input: {
@@ -250,8 +270,10 @@ export async function upsertOutletProduct(input: {
   taxRate: number;
   isAvailable: boolean;
 }): Promise<ActionResult> {
-  await requireMenu("master_data");
+  const session = await requireMenu("master_data");
   const { t } = await getT();
+  const denied = await outletPricingDenied(session, input, t);
+  if (denied) return { ok: false, message: denied };
   if (!Number.isFinite(input.sellingPrice) || input.sellingPrice < 0) {
     return { ok: false, message: t("masterData.errSellingPriceNegative") };
   }
@@ -286,8 +308,10 @@ export async function removeOutletProduct(input: {
   productId: number;
   channel: string;
 }): Promise<ActionResult> {
-  await requireMenu("master_data");
+  const session = await requireMenu("master_data");
   const { t } = await getT();
+  const denied = await outletPricingDenied(session, input, t);
+  if (denied) return { ok: false, message: denied };
 
   try {
     await pool.query(
@@ -385,6 +409,8 @@ async function getCurrentImageUrl(productId: number): Promise<string | null> {
 
 async function deleteImageFile(imageUrl: string): Promise<void> {
   if (!imageUrl.startsWith("/uploads/products/")) return;
+  // Plain file names only — never follow "../" out of the uploads folder.
+  if (!/^[\w-]+\.(jpg|png|webp)$/.test(imageUrl.slice("/uploads/products/".length))) return;
   const filePath = path.join(process.cwd(), "public", imageUrl);
   await unlink(filePath).catch(() => {});
 }
@@ -395,6 +421,10 @@ export async function uploadProductImage(
 ): Promise<ActionResult> {
   await requireMenu("master_data");
   const { t } = await getT();
+  // Used in the file name: must be a plain positive integer (no path segments).
+  if (!Number.isSafeInteger(productId) || productId <= 0) {
+    return { ok: false, message: t("masterData.errProductNotFound") };
+  }
 
   const file = formData.get("image");
   if (!(file instanceof File) || file.size === 0) {
