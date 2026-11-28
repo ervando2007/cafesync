@@ -72,6 +72,8 @@ export const en = {
     themeLight: "Light",
     themeDark: "Dark",
     themeSystem: "System",
+    enterFullscreen: "Enter fullscreen",
+    exitFullscreen: "Exit fullscreen",
   },
   nav: {
     attendanceDevices: "Attendance Devices",

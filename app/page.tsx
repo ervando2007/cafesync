@@ -2,6 +2,7 @@ import { LoginHero } from "@/app/ui/login-hero";
 import { LoginForm } from "@/app/ui/login-form";
 import { LanguageSwitcher } from "@/app/ui/language-switcher";
 import { ThemeSwitcher } from "@/app/ui/theme-switcher";
+import { FullscreenToggle } from "@/app/ui/fullscreen-toggle";
 import { getT } from "@/lib/i18n/server";
 
 export default async function LoginPage() {
@@ -14,6 +15,7 @@ export default async function LoginPage() {
 
         <div className="flex flex-col p-8 sm:p-12 lg:p-16">
           <div className="flex flex-wrap justify-end gap-2">
+            <FullscreenToggle />
             <ThemeSwitcher />
             <LanguageSwitcher />
           </div>

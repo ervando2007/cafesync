@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/app/providers";
 import { getLocale } from "@/lib/i18n/locale";
@@ -20,6 +20,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "CafeSync",
   description: "Cafe system powered by next.js",
+  applicationName: "CafeSync",
+  // iOS ignores the manifest's display mode; this opens the home-screen app
+  // without Safari's chrome.
+  appleWebApp: { capable: true, title: "CafeSync", statusBarStyle: "black-translucent" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1b140f",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

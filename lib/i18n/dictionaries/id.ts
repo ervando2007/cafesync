@@ -74,6 +74,8 @@ export const id: typeof en = {
     themeLight: "Terang",
     themeDark: "Gelap",
     themeSystem: "Sistem",
+    enterFullscreen: "Layar penuh",
+    exitFullscreen: "Keluar layar penuh",
   },
   nav: {
     attendanceDevices: "Mesin Absensi",

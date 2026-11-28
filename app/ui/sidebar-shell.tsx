@@ -7,6 +7,7 @@ import Image from "next/image";
 import { CoffeeCupIcon } from "@/app/ui/icons";
 import { LogoutButton } from "@/app/ui/logout-button";
 import { ThemeSwitcher } from "@/app/ui/theme-switcher";
+import { FullscreenToggle } from "@/app/ui/fullscreen-toggle";
 import { SidebarNav } from "@/app/ui/sidebar-nav";
 import { navItemsForMenuKeys } from "@/app/ui/sidebar-nav-items";
 import { MenuIcon, XIcon } from "@/app/ui/dashboard/icons";
@@ -182,7 +183,10 @@ export function SidebarShell({
 
           {extra}
 
-          <ThemeSwitcher variant="sidebar" className="flex w-full" />
+          <div className="flex gap-2">
+            <ThemeSwitcher variant="sidebar" className="flex flex-1" />
+            <FullscreenToggle variant="sidebar" />
+          </div>
 
           <LogoutButton />
         </div>
